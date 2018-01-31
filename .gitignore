@@ -13,3 +13,5 @@ docs/build/
 .project
 .pydevproject
 node_modules
+.cproject
+.settings/
