@@ -1,34 +1,7 @@
 /*-
- *   BSD LICENSE
+ * Copyright(c) 2017 Intel Corporation. All rights reserved.
  *
- *   Copyright(c) 2017 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 /* Created 2017 by Keith Wiles @ intel.com */
@@ -39,13 +12,16 @@
 #include <string.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include <signal.h>
+#include <sys/ioctl.h>
 
-#include <rte_config.h>
 #include <rte_atomic.h>
 #include <rte_malloc.h>
 #include <rte_spinlock.h>
 
+#include <cli.h>
 #include "cli_scrn.h"
+#include "cli_input.h"
 
 RTE_DEFINE_PER_LCORE(struct cli_scrn *, scrn);
 
@@ -123,12 +99,19 @@ scrn_stdin_setup(void)
 
 	scrn_set_io(stdin, stdout);
 
-	tcgetattr(fileno(scrn->fd_in), &scrn->oldterm);
-	memcpy(&term, &scrn->oldterm, sizeof(term));
+	memset(&scrn->oldterm, 0, sizeof(term));
+	if (tcgetattr(fileno(scrn->fd_in), &scrn->oldterm) ||
+	    tcgetattr(fileno(scrn->fd_in), &term)) {
+		printf("%s: setup failed for tty\n", __func__);
+		return -1;
+	}
 
-	term.c_lflag &= ~(ICANON | ECHO | ISIG);
-	tcsetattr(0, TCSANOW, &term);
-	setbuf(scrn->fd_in, NULL);
+	term.c_lflag &= ~(ICANON | ECHO | ISIG | IEXTEN);
+
+	if (tcsetattr(fileno(scrn->fd_in), TCSANOW, &term)) {
+		printf("%s: failed to set tty\n", __func__);
+		return -1;
+	}
 
 	return 0;
 }
@@ -138,16 +121,45 @@ scrn_stdin_restore(void)
 {
 	struct cli_scrn *scrn = this_scrn;
 
-	if (!scrn || !scrn->fd_in)
+	if (!scrn)
 		return;
 
-	tcsetattr(fileno(scrn->fd_in), TCSANOW, &scrn->oldterm);
+	if (tcsetattr(fileno(scrn->fd_in), TCSANOW, &scrn->oldterm))
+		printf("%s: failed to set tty\n", __func__);
+
+	if (system("stty sane"))
+		printf("%s: system command failed\n", __func__);
+}
+
+static void
+handle_winch(int sig)
+{
+	struct winsize w;
+
+	if (sig != SIGWINCH)
+		return;
+
+	ioctl(0, TIOCGWINSZ, &w);
+
+	this_scrn->nrows = w.ws_row;
+	this_scrn->ncols = w.ws_col;
+
+	/* Need to refreash the screen */
+	//cli_clear_screen();
+	cli_clear_line(-1);
+	cli_redisplay_line();
 }
 
 int
-scrn_create(int scrn_type, int16_t nrows, int16_t ncols, int theme)
+scrn_create(int scrn_type, int theme)
 {
+	struct winsize w;
 	struct cli_scrn *scrn = this_scrn;
+	struct sigaction sa;
+
+	memset(&sa, 0, sizeof(struct sigaction));
+	sa.sa_handler = handle_winch;
+	sigaction(SIGWINCH, &sa, NULL);
 
 	if (!scrn) {
 		scrn = malloc(sizeof(struct cli_scrn));
@@ -160,8 +172,10 @@ scrn_create(int scrn_type, int16_t nrows, int16_t ncols, int theme)
 
 	rte_atomic32_set(&scrn->pause, SCRN_SCRN_PAUSED);
 
-	scrn->nrows = nrows;
-	scrn->ncols = ncols;
+	ioctl(0, TIOCGWINSZ, &w);
+
+	scrn->nrows = w.ws_row;
+	scrn->ncols = w.ws_col;
 	scrn->theme = theme;
 	scrn->type  = scrn_type;
 
@@ -177,8 +191,6 @@ scrn_create(int scrn_type, int16_t nrows, int16_t ncols, int theme)
 
 	scrn_color(SCRN_DEFAULT_FG, SCRN_DEFAULT_BG, SCRN_OFF);
 
-	scrn_erase(nrows);
-
 	return 0;
 }
 
@@ -186,8 +198,7 @@ int
 scrn_create_with_defaults(int theme)
 {
 	return scrn_create(SCRN_STDIN_TYPE,
-					   SCRN_DEFAULT_ROWS, SCRN_DEFAULT_COLS,
-					   (theme)? SCRN_THEME_ON : SCRN_THEME_OFF);
+	                   (theme)? SCRN_THEME_ON : SCRN_THEME_OFF);
 }
 
 void

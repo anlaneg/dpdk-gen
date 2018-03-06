@@ -1,42 +1,13 @@
 /*-
- *   BSD LICENSE
+ * Copyright(c) 2017 Intel Corporation. All rights reserved.
  *
- *   Copyright(c) 2017 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include <rte_string_fns.h>
 
 #include "cli.h"
-#ifndef RTE_LIBRTE_CLI
 #include "cli_string_fns.h"
-#endif
 
 int
 cli_map_list_search(const char *fmt, char *item, int index)
@@ -72,27 +43,54 @@ is_map_valid(const char *fmt, char *arg)
 	do {
 		ret = 0;
 		switch (fmt[1]) {
-		case '%': ret = 1; break;
-		case 'd': if (isdigit(*arg)) ret = 1; break;
-		case 'D': if (isdigit(*arg)) ret = 1; break;
-		case 'h': if (isxdigit(*arg)) ret = 1; break;
-		case 'H': if (isxdigit(*arg)) ret = 1; break;
-		case 's': if (isprint(*arg)) ret = 1; break;
-					/* TODO: validate this is a valid IPv4 network address */
-		case 'n': if (isdigit(*arg)) ret = 1; break;
-					/* TODO: validate this is a valid IPv4 address */
-		case '4': if (isdigit(*arg)) ret = 1; break;
-					/* TODO: validate this is a valid IPv6 address */
-		case '6': if (isdigit(*arg)) ret = 1; break;
-					/* TODO: validate this is a valid MAC address */
-		case 'm': if (isxdigit(*arg)) ret = 1; break;
-		case 'k': return 1;
-					/* list of ports or cores or the word all */
-		case 'P': if (isdigit(*arg) || (*arg == 'a')) ret = 1; break;
-		case 'C': if (isdigit(*arg) || (*arg == 'a')) ret = 1; break;
+		case '%':
+			ret = 1;
+			break;
+		case 'd':
+			if (isdigit(*arg)) ret = 1;
+			break;
+		case 'D':
+			if (isdigit(*arg)) ret = 1;
+			break;
+		case 'h':
+			if (isxdigit(*arg)) ret = 1;
+			break;
+		case 'H':
+			if (isxdigit(*arg)) ret = 1;
+			break;
+		case 's':
+			if (isprint(*arg)) ret = 1;
+			break;
+		/* TODO: validate this is a valid IPv4 network address */
+		case 'n':
+			if (isdigit(*arg)) ret = 1;
+			break;
+		/* TODO: validate this is a valid IPv4 address */
+		case '4':
+			if (isdigit(*arg)) ret = 1;
+			break;
+		/* TODO: validate this is a valid IPv6 address */
+		case '6':
+			if (isdigit(*arg)) ret = 1;
+			break;
+		/* TODO: validate this is a valid MAC address */
+		case 'm':
+			if (isxdigit(*arg)) ret = 1;
+			break;
+		case 'k':
+			return 1;
+		/* list of ports or cores or the word all */
+		case 'P':
+			if (isdigit(*arg) || (*arg == 'a')) ret = 1;
+			break;
+		case 'C':
+			if (isdigit(*arg) || (*arg == 'a')) ret = 1;
+			break;
 		case '|':
 			return (rte_stropt(&fmt[1], arg, "|") == -1) ? 0 : 1;
-		case 'l': ret = 1; break;
+		case 'l':
+			ret = 1;
+			break;
 		default:
 			return 0;
 		}
@@ -162,26 +160,55 @@ decode_map(const char *fmt)
 	}
 
 	switch (fmt[1]) {
-	case '%': cli_printf("%% "); break;
-	case 'd': cli_printf("<32bit number> "); break;
-	case 'D': cli_printf("<64bit number> "); break;
-	case 'h': cli_printf("<32bit hex> "); break;
-	case 'H': cli_printf("<64bit hex> "); break;
-	case 's': cli_printf("<string> "); break;
-	case '4': cli_printf("<IPv4 Address> "); break;
-	case '6': cli_printf("<IPv6 Address> "); break;
-	case 'm': cli_printf("<MAC address> "); break;
-	case 'k': cli_printf("<kvargs> "); break;
-	case 'P': cli_printf("<portlist> "); break;
-	case 'C': cli_printf("<corelist> "); break;
-	case '|': cli_printf("[");
+	case '%':
+		cli_printf("%% ");
+		break;
+	case 'd':
+		cli_printf("<32bit number> ");
+		break;
+	case 'D':
+		cli_printf("<64bit number> ");
+		break;
+	case 'h':
+		cli_printf("<32bit hex> ");
+		break;
+	case 'H':
+		cli_printf("<64bit hex> ");
+		break;
+	case 's':
+		cli_printf("<string> ");
+		break;
+	case '4':
+		cli_printf("<IPv4 Address> ");
+		break;
+	case '6':
+		cli_printf("<IPv6 Address> ");
+		break;
+	case 'm':
+		cli_printf("<MAC address> ");
+		break;
+	case 'k':
+		cli_printf("<kvargs> ");
+		break;
+	case 'P':
+		cli_printf("<portlist> ");
+		break;
+	case 'C':
+		cli_printf("<corelist> ");
+		break;
+	case '|':
+		cli_printf("[");
 		n = rte_strtok(&line[2], "|", argv, CLI_MAX_ARGVS);
 		for (i = 0; i < n; i++)
 			cli_printf("%s%s", argv[i], (i < (n - 1)) ? "|" : "");
 		cli_printf("] ");
 		break;
-	case 'l': cli_printf("<list> "); break;
-	default: cli_printf("<unknown> "); break;
+	case 'l':
+		cli_printf("<list> ");
+		break;
+	default:
+		cli_printf("<unknown> ");
+		break;
 	}
 }
 

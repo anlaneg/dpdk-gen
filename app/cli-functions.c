@@ -1,35 +1,7 @@
 /*-
- * Copyright (c) <2017>, Intel Corporation
- * All rights reserved.
+ * Copyright (c) <2017>, Intel Corporation. All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * - Redistributions of source code must retain the above copyright
- *   notice, this list of conditions and the following disclaimer.
- *
- * - Redistributions in binary form must reproduce the above copyright
- *   notice, this list of conditions and the following disclaimer in
- *   the documentation and/or other materials provided with the
- *   distribution.
- *
- * - Neither the name of Intel Corporation nor the names of its
- *   contributors may be used to endorse or promote products derived
- *   from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
- * OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 /* Created 2017 by Keith Wiles @ intel.com */
@@ -46,14 +18,12 @@
 #include <rte_version.h>
 #include <rte_atomic.h>
 #include <rte_devargs.h>
+#include <rte_ether.h>
 #include <rte_string_fns.h>
-#ifndef RTE_LIBRTE_CLI
 #include <cli_string_fns.h>
-#endif
 #include <rte_hexdump.h>
-#ifdef RTE_LIBRTE_RBUF
-#include <rte_rbuf.h>
-#endif
+#include <rte_cycles.h>
+#include <rte_malloc.h>
 
 #include "pktgen.h"
 
@@ -67,9 +37,7 @@
 #include "pktgen-display.h"
 #include "pktgen-random.h"
 #include "pktgen-log.h"
-#ifndef RTE_LIBRTE_CLI
 #include "pg_ether.h"
-#endif
 
 static inline uint16_t
 valid_pkt_size(port_info_t *info, char *val)
@@ -97,22 +65,6 @@ static const char *title_help[] = {
 	"",
 	NULL,
 };
-
-static inline int
-command_error(const char * msg, const char *group, int argc, char **argv)
-{
-	int n;
-
-	if (group)
-		cli_help_show_group(group);
-	if (msg)
-		cli_printf("%s:\n", msg);
-	cli_printf("  Invalid line: <");
-	for(n = 0; n < argc; n++)
-		cli_printf("%s ", argv[n]);
-	cli_printf(">\n");
-	return -1;
-}
 
 static const char *status_help[] = {
 	"       Flags: P---------------- - Promiscuous mode enabled",
@@ -153,7 +105,7 @@ static struct cli_map range_map[] = {
 	{ 31, "range %P src ip "SMMI" %4" },
 	{ 32, "range %P dst ip %4 %4 %4 %4" },
 	{ 33, "range %P src ip %4 %4 %4 %4" },
-	{ 40, "range %P proto tcp|udp" },
+	{ 40, "range %P proto %|tcp|udp" },
 	{ 50, "range %P dst port "SMMI" %d" },
 	{ 51, "range %P src port "SMMI" %d" },
 	{ 52, "range %P dst port %d %d %d %d" },
@@ -165,6 +117,10 @@ static struct cli_map range_map[] = {
 	{ 80, "range %P mpls entry %h" },
 	{ 85, "range %P qinq index %d %d" },
 	{ 90, "range %P gre key %d" },
+	{ 160, "range %P cos "SMMI" %d" },
+	{ 161, "range %P cos %d %d %d %d" },
+	{ 170, "range %P tos "SMMI" %d" },
+	{ 171, "range %P tos %d %d %d %d" },
     { -1, NULL }
 };
 
@@ -180,7 +136,7 @@ static const char *range_help[] = {
 	"                 range 0 dst ip min 0.0.0.0",
 	"                 range 0 dst ip max 1.2.3.4",
 	"                 range 0 dst ip inc 0.0.1.0",
-    "             or  range 0 dst ip 0.0.0.0 0.0.0.0 1.2.3.4 0.0.1.0",
+	"             or  range 0 dst ip 0.0.0.0 0.0.0.0 1.2.3.4 0.0.1.0",
 	"range <portlist> proto tcp|udp                - Set the IP protocol type",
 	"range <portlist> src|dst port <SMMI> <value>  - Set UDP/TCP source/dest port number",
 	"   or  range <portlist> src|dst port <start> <min> <max> <inc>",
@@ -193,6 +149,9 @@ static const char *range_help[] = {
 	"range <portlist> mpls entry <hex-value>       - Set MPLS entry value",
 	"range <portlist> qinq index <val1> <val2>     - Set QinQ index values",
 	"range <portlist> gre key <value>              - Set GRE key value",
+	"range <portlist> cos <SMMI> <value>           - Set cos value",
+	"range <portlist> tos <SMMI> <value>           - Set tos value",
+
 	CLI_HELP_PAUSE,
 	NULL
 };
@@ -208,7 +167,7 @@ range_cmd(int argc, char **argv)
 
 	m = cli_mapping(range_map, argc, argv);
 	if (!m)
-		return command_error("Range command error", "Range", argc, argv);
+		return cli_cmd_error("Range command error", "Range", argc, argv);
 
 	rte_parse_portlist(argv[1], &portlist);
 
@@ -283,7 +242,7 @@ range_cmd(int argc, char **argv)
 			break;
 		case 40:
 			foreach_port(portlist,
-				range_set_proto(info, what) );
+				range_set_proto(info, argv[3]) );
 			break;
 		case 50:
 			foreach_port(portlist,
@@ -345,8 +304,32 @@ range_cmd(int argc, char **argv)
 			foreach_port(portlist,
 				range_set_gre_key(info, strtoul(what, NULL, 10)) );
 			break;
+		case 160:
+			foreach_port(portlist,
+				range_set_cos_id(info, argv[3], atoi(what)) );
+			break;
+		case 161:
+			foreach_port(portlist,
+				range_set_cos_id(info, (char *)(uintptr_t)"start", atoi(argv[3]));
+				range_set_cos_id(info, (char *)(uintptr_t)"min", atoi(argv[4]));
+				range_set_cos_id(info, (char *)(uintptr_t)"max", atoi(argv[5]));
+				range_set_cos_id(info, (char *)(uintptr_t)"inc", atoi(argv[6]));
+				);
+			break;
+		case 170:
+			foreach_port(portlist,
+				range_set_tos_id(info, argv[3], atoi(what)) );
+			break;
+		case 171:
+			foreach_port(portlist,
+				range_set_tos_id(info, (char *)(uintptr_t)"start", atoi(argv[3]));
+				range_set_tos_id(info, (char *)(uintptr_t)"min", atoi(argv[4]));
+				range_set_tos_id(info, (char *)(uintptr_t)"max", atoi(argv[5]));
+				range_set_tos_id(info, (char *)(uintptr_t)"inc", atoi(argv[6]))
+				);
+			break;
 		default:
-			return -1;
+			return cli_cmd_error("Range command error", "Range", argc, argv);
 	}
 	pktgen_update_display();
 	return 0;
@@ -379,6 +362,8 @@ static struct cli_map set_map[] = {
 	{ 40, "set ports_per_page %d" },
 	{ 50, "set %P qinqids %d %d" },
 	{ 60, "set %P rnd %d %d %s" },
+	{ 70, "set %P cos %d" },
+	{ 80, "set %P tos %d" },
     { -1, NULL }
 };
 
@@ -420,6 +405,8 @@ static const char *set_help[] = {
 	"                                       1: bit will be 1",
 	"                                       .: bit will be ignored (original value is retained)",
 	"                                       X: bit will get random value",
+	"set <portlist> cos	<value>            - Set the CoS value for the portlist",
+	"set <portlist> tos	<value>            - Set the ToS value for the portlist",
 	CLI_HELP_PAUSE,
 	NULL
 };
@@ -436,7 +423,7 @@ set_cmd(int argc, char **argv)
 
 	m = cli_mapping(set_map, argc, argv);
 	if (!m)
-		return command_error("Set command is invalid", "Set", argc, argv);
+		return cli_cmd_error("Set command is invalid", "Set", argc, argv);
 
 	rte_parse_portlist(argv[1], &portlist);
 
@@ -461,7 +448,7 @@ set_cmd(int argc, char **argv)
 					case 10: single_set_vlan_id(info, value); break;
 					case 11: pktgen_set_port_seqCnt(info, value); break;
 					default:
-						return -1;
+						return cli_cmd_error("Set command is invalid", "Set", argc, argv);
 				}) );
 			break;
 		case 11:
@@ -518,8 +505,37 @@ set_cmd(int argc, char **argv)
 			id2 = strtol(argv[4], NULL, 0);
 			foreach_port(portlist, single_set_qinqids(info, id1, id2));
 			break;
+		case 60: {
+			char mask[34] = { 0 }, *m;
+			char cb;
+
+			id1 = strtol(argv[3], NULL, 0);
+			id2 = strtol(argv[4], NULL, 0);
+			m = argv[5];
+			if (strcmp(m, "off")) {
+				int idx;
+				/* Filter invalid characters from provided mask. This way the user can
+				* more easily enter long bitmasks, using for example '_' as a separator
+				* every 8 bits. */
+				for (n = 0, idx = 0; (idx < 32) && ((cb = m[n]) != '\0'); n++)
+					if ((cb == '0') || (cb == '1') || (cb == '.') || (cb == 'X') || (cb == 'x'))
+						mask[idx++] = cb;
+			}
+			foreach_port(portlist,
+				enable_random(info, pktgen_set_random_bitfield(info->rnd_bitfields,
+					id1, id2, mask) ? ENABLE_STATE : DISABLE_STATE));
+			}
+			break;
+		case 70:
+			id1 = strtol(argv[3], NULL, 0);
+			foreach_port(portlist, single_set_cos(info, id1));
+			break;
+		case 80:
+			id1 = strtol(argv[3], NULL, 0);
+			foreach_port(portlist, single_set_tos(info, id1));
+			break;
 		default:
-			return -1;
+			return cli_cmd_error("Command invalid", "Set", argc, argv);
 	}
 
 	pktgen_update_display();
@@ -552,7 +568,7 @@ pcap_cmd(int argc, char **argv)
 
 	m = cli_mapping(pcap_map, argc, argv);
 	if (!m)
-		return command_error("PCAP command invalid", "PCAP", argc, argv);
+		return cli_cmd_error("PCAP command invalid", "PCAP", argc, argv);
 
 	switch(m->index) {
 		case 10:
@@ -583,7 +599,7 @@ pcap_cmd(int argc, char **argv)
 				pcap_filter(info, argv[3]) );
 			break;
 		default:
-			return -1;
+			return cli_cmd_error("PCAP command invalid", "PCAP", argc, argv);
 	}
 	pktgen_update_display();
 	return 0;
@@ -618,7 +634,7 @@ start_stop_cmd(int argc, char **argv)
 
 	m = cli_mapping(start_map, argc, argv);
 	if (!m)
-		return command_error("Start/Stop command invalid", "Start", argc, argv);
+		return cli_cmd_error("Start/Stop command invalid", "Start", argc, argv);
 
 	rte_parse_portlist(argv[1], &portlist);
 
@@ -641,7 +657,7 @@ start_stop_cmd(int argc, char **argv)
 				     pktgen_send_arp_requests(info, 0) );
 			break;
 		default:
-			return -1;
+			return cli_cmd_error("Start/Stop command invalid", "Start", argc, argv);
 	}
 	pktgen_update_display();
 	return 0;
@@ -670,7 +686,7 @@ theme_cmd(int argc, char **argv)
 
 	m = cli_mapping(theme_map, argc, argv);
 	if (!m)
-		return command_error("Theme command invalid", "Theme", argc, argv);
+		return cli_cmd_error("Theme command invalid", "Theme", argc, argv);
 
 	switch(m->index) {
 	case 0:  pktgen_theme_show(); break;
@@ -747,7 +763,7 @@ en_dis_cmd(int argc, char **argv)
 
 	m = cli_mapping(enable_map, argc, argv);
 	if (!m)
-		return command_error("Enable/Disable invalid command", "Enable", argc, argv);
+		return cli_cmd_error("Enable/Disable invalid command", "Enable", argc, argv);
 
 	rte_parse_portlist(argv[1], &portlist);
 
@@ -819,8 +835,7 @@ en_dis_cmd(int argc, char **argv)
 					foreach_port(portlist, enable_short_pkts(info, state));
 					break;
 				default:
-					cli_printf("Invalid option %s\n", ed_type);
-					return -1;
+					return cli_cmd_error("Enable/Disable invalid command", "Enable", argc, argv);
 			}
 			break;
 
@@ -834,57 +849,104 @@ en_dis_cmd(int argc, char **argv)
 				pktgen_screen(state);
 			break;
 		default:
-			cli_usage();
-			return -1;
+			return cli_cmd_error("Enable/Disable invalid command", "Enable", argc, argv);
 	}
 	pktgen_update_display();
 	return 0;
 }
 
-static struct cli_map debug_map[] = {
-	{ 10, "debug l2p" },
-	{ 20, "debug tx_debug" },
-	{ 30, "debug mempool %P %s" },
-	{ 40, "debug pdump %P" },
-	{ 50, "debug memzone" },
-	{ 51, "debug memseg" },
-	{ 60, "debug hexdump %H %d" },
-	{ 61, "debug hexdump %H" },
-#ifdef RTE_LIBRTE_RBUF
-	{ 70, "debug rbuf" },
+#ifdef RTE_LIBRTE_SMEM
+#include <rte_smem.h>
 #endif
-	{ 80, "debug break" },
+
+static struct cli_map dbg_map[] = {
+	{ 10, "dbg l2p" },
+	{ 20, "dbg tx_dbg" },
+	{ 30, "dbg %|mempool|dump %P %s" },
+	{ 40, "dbg pdump %P" },
+	{ 50, "dbg memzone" },
+	{ 51, "dbg memseg" },
+	{ 60, "dbg hexdump %H %d" },
+	{ 61, "dbg hexdump %H" },
+#ifdef RTE_LIBRTE_SMEM
+	{ 70, "dbg smem" },
+#endif
+	{ 80, "dbg break" },
+	{ 90, "dbg memcpy" },
+	{ 91, "dbg memcpy %d %d" },
     { -1, NULL }
 };
 
-static const char *debug_help[] = {
-	"debug l2p                          - Dump out internal lcore to port mapping",
-	"debug tx_debug                     - Enable tx debug output",
-	"debug mempool <portlist> <type>    - Dump out the mempool info for a given type",
-	"debug pdump <portlist>             - Hex dump the first packet to be sent, single packet mode only",
-	"debug memzone                      - List all of the current memzones",
-	"debug memseg                       - List all of the current memsegs",
-	"debug hexdump <addr> <len>         - hex dump memory at given address",
-#ifdef RTE_LIBRTE_RBUF
-	"debug rbuf                         - dump out the RBUF structure",
+static const char *dbg_help[] = {
+	"dbg l2p                          - Dump out internal lcore to port mapping",
+	"dbg tx_dbg                       - Enable tx debug output",
+	"dbg mempool|dump <portlist> <type>    - Dump out the mempool info for a given type",
+	"dbg pdump <portlist>             - Hex dump the first packet to be sent, single packet mode only",
+	"dbg memzone                      - List all of the current memzones",
+	"dbg memseg                       - List all of the current memsegs",
+	"dbg hexdump <addr> <len>         - hex dump memory at given address",
+#ifdef RTE_LIBRTE_SMEM
+	"dbg smem                         - dump out the SMEM structure",
 #endif
-	"debug break                        - break into the debugger",
+	"dbg break                        - break into the debugger",
+	"dbg memcpy [loop-cnt KBytes]     - run a memcpy test",
 	"",
 	NULL
 };
 
+static void
+rte_memcpy_perf(unsigned int cnt, unsigned int kb, int flag)
+{
+	char *buf[2], *src, *dst;
+	uint64_t start_time, total_time;
+	uint64_t total_bits, bits_per_tick;
+	unsigned int i;
+	void *(*cpy)(void *, const void *, size_t);
+
+	kb *= 1024;
+
+	buf[0] = malloc(kb + RTE_CACHE_LINE_SIZE);
+	buf[1] = malloc(kb + RTE_CACHE_LINE_SIZE);
+
+	src = RTE_PTR_ALIGN(buf[0], RTE_CACHE_LINE_SIZE);
+	dst = RTE_PTR_ALIGN(buf[1], RTE_CACHE_LINE_SIZE);
+
+	cpy = (flag)? rte_memcpy : memcpy;
+
+	start_time = rte_get_tsc_cycles();
+	for(i = 0; i < cnt; i++)
+		cpy(dst, src, kb);
+	total_time = rte_get_tsc_cycles() - start_time;
+
+	total_bits = ((uint64_t)cnt * (uint64_t)kb) * 8L;
+
+	bits_per_tick = total_bits/total_time;
+
+	free(buf[0]);
+	free(buf[1]);
+
+#define MEGA (uint64_t)(1024 * 1024)
+	printf("%3d Kbytes for %8d loops, ", (kb/1024), cnt);
+	printf("%3ld bits/tick, ", bits_per_tick);
+	printf("%6ld Mbits/sec with %s\n",
+		(bits_per_tick * rte_get_timer_hz())/MEGA,
+		(flag)? "rte_memcpy" : "memcpy");
+}
+
 static int
-debug_cmd(int argc, char **argv)
+dbg_cmd(int argc, char **argv)
 {
 	struct cli_map *m;
 	portlist_t portlist;
-	unsigned int len;
+	unsigned int len, cnt;
 	const void *addr;
 
-	m = cli_mapping(debug_map, argc, argv);
+	m = cli_mapping(dbg_map, argc, argv);
 	if (!m)
-		return command_error("Debug invalid command", "Debug", argc, argv);
+		return cli_cmd_error("Debug invalid command", "Debug", argc, argv);
 
+	len = 32;
+	cnt = 100000;
 	switch(m->index) {
 		case 10:
 			pktgen_l2p_dump();
@@ -898,9 +960,8 @@ debug_cmd(int argc, char **argv)
 			break;
 		case 30:
 			rte_parse_portlist(argv[2], &portlist);
-			if (!strcmp(argv[1], "dump") )
-				foreach_port(portlist,
-					     debug_mempool_dump(info, argv[3]) );
+			foreach_port(portlist,
+				debug_mempool_dump(info, argv[3]) );
 			break;
 		case 40:
 			rte_parse_portlist(argv[2], &portlist);
@@ -922,23 +983,31 @@ debug_cmd(int argc, char **argv)
 				len = strtoul(argv[3], NULL, 0);
 			rte_hexdump(stdout, "", addr, len);
 			break;
-#ifdef RTE_LIBRTE_RBUF
+#ifdef RTE_LIBRTE_SMEM
 		case 70:
-			rte_rbuf_list_dump(stdout);
+			rte_smem_list_dump(stdout);
 			break;
 #endif
 		case 80:
 			kill(getpid(), SIGINT);
 			break;
+		case 91:
+			cnt = atoi(argv[2]);
+			len = atoi(argv[3]);
+			/*FALLTHRU*/
+		case 90:
+			rte_memcpy_perf(cnt, len, 0);
+			rte_memcpy_perf(cnt, len, 1);
+			break;
 		default:
-			return -1;
+			return cli_cmd_error("Debug invalid command", "Debug", argc, argv);
 	}
 	return 0;
 }
 
 /**************************************************************************//**
  *
- * cmd_set_seq_parsed - Set a sequence config for given port and slot.
+ * Set a sequence config for given port and slot.
  *
  * DESCRIPTION
  * Set up the sequence packets for a given port and slot.
@@ -965,10 +1034,12 @@ seq_1_set_cmd(int argc __rte_unused, char **argv)
 		return -1;
 	}
 
-	if (seqnum >= NUM_SEQ_PKTS)
+	if (seqnum >= NUM_SEQ_PKTS) {
+		cli_printf("sequence number too large\n");
 		return -1;
+	}
 
-	teid = (argc == 11)? strtoul(argv[13], NULL, 10) : 0;
+	teid = (argc == 14)? strtoul(argv[13], NULL, 10) : 0;
 	p = strchr(argv[5], '/'); /* remove subnet if found */
 	if (p)
 		*p = '\0';
@@ -982,7 +1053,7 @@ seq_1_set_cmd(int argc __rte_unused, char **argv)
 	} else
 		rte_atoip(argv[6], PG_IPADDR_V4 | PG_IPADDR_NETWORK, &src, sizeof(src));
 	rte_parse_portlist(argv[2], &portlist);
-    rte_ether_aton(argv[3], &dmac);
+	rte_ether_aton(argv[3], &dmac);
 	rte_ether_aton(argv[4], &smac);
 	foreach_port(portlist,
 		     pktgen_set_seq(info, seqnum,
@@ -999,7 +1070,7 @@ seq_1_set_cmd(int argc __rte_unused, char **argv)
 
 /**************************************************************************//**
  *
- * cmd_set_seq_parsed - Set a sequence config for given port and slot.
+ * Set a sequence config for given port and slot.
  *
  * DESCRIPTION
  * Set up the sequence packets for a given port and slot.
@@ -1026,8 +1097,10 @@ seq_2_set_cmd(int argc __rte_unused, char **argv)
 		return -1;
 	}
 
-	if (seqnum >= NUM_SEQ_PKTS)
+	if (seqnum >= NUM_SEQ_PKTS) {
+		cli_printf("Sequence number too large\n");
 		return -1;
+	}
 
 	teid = (argc == 23)? strtoul(argv[22], NULL, 10) : 0;
 	p = strchr(argv[8], '/'); /* remove subnet if found */
@@ -1043,8 +1116,8 @@ seq_2_set_cmd(int argc __rte_unused, char **argv)
 	} else
 		rte_atoip(argv[10], PG_IPADDR_V4 | PG_IPADDR_NETWORK, &src, sizeof(src));
 	rte_parse_portlist(argv[2], &portlist);
-    rte_ether_aton(argv[3], &dmac);
-	rte_ether_aton(argv[4], &smac);
+	rte_ether_aton(argv[4], &dmac);
+	rte_ether_aton(argv[6], &smac);
 	foreach_port(portlist,
 		     pktgen_set_seq(info, seqnum,
 				    &dmac, &smac,
@@ -1058,17 +1131,56 @@ seq_2_set_cmd(int argc __rte_unused, char **argv)
 	return 0;
 }
 
+/**************************************************************************//**
+ *
+ * Set a sequence config for given port and slot.
+ *
+ * DESCRIPTION
+ * Set up the sequence packets for a given port and slot.
+ *
+ * RETURNS: N/A
+ *
+ * SEE ALSO:
+ * 	"%|seq|sequence %d %P cos %d tos %d"
+ */
+
+static int
+seq_3_set_cmd(int argc __rte_unused, char **argv)
+{
+	int seqnum = atoi(argv[1]);
+	portlist_t portlist;
+	uint32_t cos, tos;
+
+	if (seqnum >= NUM_SEQ_PKTS) {
+		cli_printf("Sequence number too large\n");
+		return -1;
+	}
+
+	cos = strtoul(argv[4], NULL, 10);
+	tos = strtoul(argv[6], NULL, 10);
+
+	rte_parse_portlist(argv[2], &portlist);
+
+	foreach_port(portlist,
+		     pktgen_set_cos_tos_seq(info, seqnum, cos, tos) );
+
+	pktgen_update_display();
+	return 0;
+}
+
 static struct cli_map seq_map[] = {
 	{ 10, "%|seq|sequence %d %P %m %m %4 %4 %d %d %|ipv4|ipv6 %|udp|tcp|icmp %d %d" },
 	{ 11, "%|seq|sequence %d %P %m %m %4 %4 %d %d %|ipv4|ipv6 %|udp|tcp|icmp %d %d %d" },
 	{ 12, "%|seq|sequence %d %P dst %m src %m dst %4 src %4 sport %d dport %d %|ipv4|ipv6 %|udp|tcp|icmp vlan %d size %d" },
 	{ 13, "%|seq|sequence %d %P dst %m src %m dst %4 src %4 sport %d dport %d %|ipv4|ipv6 %|udp|tcp|icmp vlan %d size %d teid %d" },
+	{ 15, "%|seq|sequence %d %P cos %d tos %d" },
 	{ -1, NULL }
 };
 
 static const char *seq_help[] = {
-	"sequence <seq#> <portlist> dst <Mac> src <Mac> dst <IP> src <IP> sport <val> dport <val> ipv4|ipv6 udp|tcp|icmp vlan <val> pktsize <val> [teid <val>]",
+	"sequence <seq#> <portlist> dst <Mac> src <Mac> dst <IP> src <IP> sport <val> dport <val> ipv4|ipv6 udp|tcp|icmp vlan <val> size <val> [teid <val>]",
 	"sequence <seq#> <portlist> <dst-Mac> <src-Mac> <dst-IP> <src-IP> <sport> <dport> ipv4|ipv6 udp|tcp|icmp <vlanid> <pktsize> [<teid>]",
+	"sequence <seq#> <portlist> cos <cos> tos <tos>",
 	"                                   - Set the sequence packet information, make sure the src-IP",
 	"                                     has the netmask value eg 1.2.3.4/24",
 	"",
@@ -1082,15 +1194,16 @@ seq_cmd(int argc, char **argv)
 
 	m = cli_mapping(seq_map, argc, argv);
 	if (!m)
-		return command_error("Sequence invalid command", "Seq", argc, argv);
+		return cli_cmd_error("Sequence invalid command", "Seq", argc, argv);
 
 	switch(m->index) {
 		case 10:
 		case 11: seq_1_set_cmd(argc, argv); break;
 		case 12:
 		case 13: seq_2_set_cmd(argc, argv); break;
+		case 15: seq_3_set_cmd(argc, argv); break;
 		default:
-			return -1;
+			return cli_cmd_error("Sequence invalid command", "Seq", argc, argv);
 	}
 	return 0;
 }
@@ -1224,7 +1337,7 @@ misc_cmd(int argc, char **argv)
 
 	m = cli_mapping(misc_map, argc, argv);
 	if (!m)
-		return command_error("Misc invalid command", "Misc", argc, argv);
+		return cli_cmd_error("Misc invalid command", "Misc", argc, argv);
 
 	switch(m->index) {
 		case 10:
@@ -1242,7 +1355,7 @@ misc_cmd(int argc, char **argv)
 				pktgen_display_set_geometry(rows, cols);
 				pktgen_clear_display();
 			} else
-				return -1;
+				return cli_cmd_error("Misc invalid command", "Misc", argc, argv);
 			/* FALLTHRU */
 		case 21:
 			pktgen_display_get_geometry(&rows, &cols);
@@ -1282,7 +1395,7 @@ misc_cmd(int argc, char **argv)
 			break;
 #endif
 		default:
-			return -1;
+			return cli_cmd_error("Misc invalid command", "Misc", argc, argv);
 	}
 	return 0;
 }
@@ -1320,13 +1433,13 @@ page_cmd(int argc, char **argv)
 
 	m = cli_mapping(page_map, argc, argv);
 	if (!m)
-		return command_error("Page invalid command", "Page", argc, argv);
+		return cli_cmd_error("Page invalid command", "Page", argc, argv);
 
 	switch(m->index) {
 		case 10:
 		case 11: pktgen_set_page(argv[1]); break;
 		default:
-			return -1;
+			return cli_cmd_error("Page invalid command", "Page", argc, argv);
 	}
 	return 0;
 }
@@ -1374,7 +1487,7 @@ static struct cli_tree default_tree[] = {
 	c_alias("stp",		"stop all",		"stop all ports sending packets"),
 	c_cmd("pcap",		pcap_cmd, 		"pcap commands"),
 	c_cmd("set", 		set_cmd, 		"set a number of options"),
-	c_cmd("debug",          debug_cmd,		"debug commands"),
+	c_cmd("dbg",            dbg_cmd,		"debug commands"),
 
 	c_alias("on",       "enable screen","Enable screen updates"),
 	c_alias("off",      "disable screen", "Disable screen updates"),
@@ -1401,7 +1514,7 @@ init_tree(void)
 	cli_help_add("Sequence", seq_map, seq_help);
 	cli_help_add("PCAP", pcap_map, pcap_help);
 	cli_help_add("Start", start_map, start_help);
-	cli_help_add("Debug", debug_map, debug_help);
+	cli_help_add("DBG", dbg_map, dbg_help);
 	cli_help_add("Misc", misc_map, misc_help);
 	cli_help_add("Theme", theme_map, theme_help);
 	cli_help_add("Status", NULL, status_help);
@@ -1413,19 +1526,24 @@ init_tree(void)
 	return 0;
 }
 
-static void
+static int
 my_prompt(int cont __rte_unused)
 {
-    cli_printf("Pktgen:%s> ", cli_path_string(NULL, NULL));
+    return cli_printf("Pktgen:%s> ", cli_path_string(NULL, NULL));
 }
 
 int
 pktgen_cli_create(void)
 {
-    return cli_create(my_prompt,      /* my local prompt routine */
-                     init_tree,
-                     CLI_DEFAULT_NODES,
-                     CLI_DEFAULT_HISTORY);
+    int ret = -1;
+
+    if (!cli_create()) {
+	if (!cli_setup_with_tree(init_tree)) {
+		cli_set_prompt(my_prompt);
+		ret = 0;
+	}
+    }
+    return ret;
 }
 
 void

@@ -1,34 +1,7 @@
 /*-
- *   BSD LICENSE
+ * Copyright(c) 2010-2017 Intel Corporation. All rights reserved.
  *
- *   Copyright(c) 2010-2017 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 /*
@@ -281,7 +254,8 @@ cmap_create(void)
 		return NULL;
 
 	if ( (fd = open(PROC_CPUINFO, O_RDONLY)) < 0) {
-		fprintf(stderr, "Cannot open %s on this system\n", PROC_CPUINFO);
+		fprintf(stderr, "Cannot open %s on this system\n",
+			PROC_CPUINFO);
 		free(cmap);
 		return NULL;
 	}
@@ -316,8 +290,8 @@ cmap_free(struct cmap *cmap)
 
 /* Helper for building log strings.
  * The macro takes an existing string, a printf-like format string and optional
- * arguments. It formats the string and appends it to the existing string, while
- * avoiding possible buffer overruns.
+ * arguments. It formats the string and appends it to the existing string,
+ * while avoiding possible buffer overruns.
  */
 #define strncatf(dest, fmt, ...) do {					\
 		char _buff[1024];					\
@@ -335,42 +309,4 @@ sct(struct cmap *cm, uint8_t s, uint8_t c, uint8_t t) {
 			return lc->lid;
 
 	return 0;
-}
-
-void
-cmap_dump(FILE *f)
-{
-	struct cmap *c = cmap_create();
-	int i;
-
-	if (!f)
-		f = stdout;
-
-	fprintf(f, "CPU : %s", c->model);
-	fprintf(f, "      %d lcores, %u socket%s, %u core%s per socket and "
-		   "%u thread%s per core\n",
-		c->num_cores,
-		c->sid_cnt, c->sid_cnt > 1 ? "s" : "",
-		c->cid_cnt, c->cid_cnt > 1 ? "s" : "",
-		c->tid_cnt, c->tid_cnt > 1 ? "s" : "");
-
-	fprintf(f, "Socket     : ");
-	for (i = 0; i < c->sid_cnt; i++)
-		fprintf(f, "%4d      ", i);
-
-	for (i = 0; i < c->cid_cnt; i++) {
-		fprintf(f, "  Core %3d : [%2d,%2d]   ", i,
-			sct(c, 0, i, 0), sct(c, 0, i, 1));
-		if (c->sid_cnt > 1)
-			fprintf(f, "[%2d,%2d]   ",
-				sct(c, 1, i, 0), sct(c, 1, i, 1));
-		if (c->sid_cnt > 2)
-			fprintf(f, "[%2d,%2d]   ",
-				sct(c, 2, i, 0), sct(c, 2, i, 1));
-		if (c->sid_cnt > 3)
-			fprintf(f, "[%2d,%2d]   ",
-				sct(c, 3, i, 0), sct(c, 3, i, 1));
-		fprintf(f, "\n");
-	}
-	cmap_free(c);
 }

@@ -1,35 +1,9 @@
 /*-
- *   BSD LICENSE
+ * Copyright(c) 2016-2017 Intel Corporation. All rights reserved.
  *
- *   Copyright(c) 2016-2017 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPDX-License-Identifier: BSD-3-Clause
  */
+/* Created 2016 by Keith Wiles @ intel.com */
 
 #include <stdio.h>
 #include <poll.h>
@@ -41,19 +15,10 @@
 #include <rte_string_fns.h>
 
 #include "cli.h"
-#ifndef RTE_LIBRTE_CLI
+#include "cli_input.h"
 #include "cli_string_fns.h"
-#endif
 
-#ifdef RTE_LIBRTE_LUA
-#ifdef CLI_STANDALONE
-#include "lua.h"
-#include "lauxlib.h"
-#else
-#include <lua.h>
-#include <lauxlib.h>
-#endif
-#endif
+int (*lua_dofile)(void *, const char *);
 
 RTE_DEFINE_PER_LCORE(struct cli *, cli);
 
@@ -73,31 +38,6 @@ cli_nodes_unlimited(void)
 	return this_cli->flags & CLI_NODES_UNLIMITED;
 }
 
-int
-cli_yield_io(void)
-{
-	if (!this_cli)
-		return 1;
-	return this_cli->flags & CLI_YIELD_IO;
-}
-
-/* The CLI write routine, using write() call */
-void
-cli_write(const void *msg, int len)
-{
-	if (!msg)
-		return;
-
-	if (len <= 0) {
-		len = strlen(msg);
-		if (!len)
-			return;
-	}
-
-	if (write(fileno(this_scrn->fd_out), msg, len) != len)
-		cli_printf("write() in cli_write() failed\n");
-}
-
 /* Allocate a node from the CLI node pool */
 static inline struct cli_node *
 cli_alloc(void)
@@ -112,7 +52,8 @@ cli_alloc(void)
 		struct cli_node *orig = cli->node_mem;
 		size_t size;
 
-		size = (cli->nb_nodes + CLI_DEFAULT_NB_NODES) * sizeof(struct cli_node);
+		size = (cli->nb_nodes + CLI_DEFAULT_NB_NODES) *
+		       sizeof(struct cli_node);
 		cli->node_mem = realloc(cli->node_mem, size);
 		if (cli->node_mem == NULL) {
 			cli->node_mem = orig;
@@ -149,6 +90,14 @@ cli_add_bin(struct cli_node *dir)
 	if (!dir || !is_directory(dir))
 		return -1;
 
+	for (i = 1; i < CLI_MAX_BINS; i++)
+		if (cli->bins[i] == dir) {
+			RTE_LOG(WARNING, EAL,
+				"Adding duplicate bin directory (%s)\n",
+				dir->name);
+			return 0;
+		}
+
 	/* Skip first special entry for current working directory */
 	for (i = 1; i < CLI_MAX_BINS; i++)
 		if (cli->bins[i] == NULL) {
@@ -175,7 +124,8 @@ cli_del_bin(struct cli_node *dir)
 			/* compress the list of directories */
 			if ((i + 1) < CLI_MAX_BINS) {
 				memmove(&cli->bins[i], &cli->bins[i + 1],
-					(CLI_MAX_BINS - (i + 1)) * sizeof(void *));
+				        (CLI_MAX_BINS - (i + 1)) *
+				        sizeof(void *));
 				cli->bins[CLI_MAX_BINS - 1] = NULL;
 			}
 			return 0;
@@ -241,7 +191,7 @@ cli_remove_node(struct cli_node *node)
 /* Helper routine to add nodes to the CLI tree */
 static struct cli_node *
 __add_node(const char *name, struct cli_node *parent,
-	   int type, cli_funcs_t func, const char *short_desc)
+	int type, cli_funcs_t func, const char *short_desc)
 {
 	struct cli_node *node;
 
@@ -441,10 +391,12 @@ cli_add_tree(struct cli_node *parent, struct cli_tree *tree)
 			d = &t->dir;
 
 			if (!(n = cli_add_dir(d->name, parent))) {
-				RTE_LOG(INFO, EAL,
-					"Add directory %s failed\n", d->name);
+				RTE_LOG(ERR, EAL,
+				        "Add directory %s failed\n", d->name);
 				return -1;
 			}
+			if (d->bin)
+				cli_add_bin_path(d->name);
 
 			parent = n;
 			break;
@@ -452,9 +404,9 @@ cli_add_tree(struct cli_node *parent, struct cli_tree *tree)
 		case CLI_CMD_NODE:
 			c = &t->cmd;
 			if (!cli_add_cmd(c->name, parent,
-					 c->cfunc, c->short_desc)) {
-				RTE_LOG(INFO, EAL,
-					"Add command %s failed\n", c->name);
+			                 c->cfunc, c->short_desc)) {
+				RTE_LOG(ERR, EAL,
+				        "Add command %s failed\n", c->name);
 				return -1;
 			}
 			break;
@@ -462,9 +414,9 @@ cli_add_tree(struct cli_node *parent, struct cli_tree *tree)
 		case CLI_FILE_NODE:
 			f = &t->file;
 			if (!cli_add_file(f->name, parent,
-					  f->ffunc, f->short_desc)) {
-				RTE_LOG(INFO, EAL,
-					"Add file %s failed\n", f->name);
+			                  f->ffunc, f->short_desc)) {
+				RTE_LOG(ERR, EAL,
+				        "Add file %s failed\n", f->name);
 				return -1;
 			}
 			break;
@@ -472,9 +424,9 @@ cli_add_tree(struct cli_node *parent, struct cli_tree *tree)
 		case CLI_ALIAS_NODE:
 			a = &t->alias;
 			if (!cli_add_alias(a->name, parent,
-					   a->alias_atr, a->short_desc)) {
-				RTE_LOG(INFO, EAL,
-					"Add alias %s failed\n", a->name);
+			                   a->alias_atr, a->short_desc)) {
+				RTE_LOG(ERR, EAL,
+				        "Add alias %s failed\n", a->name);
 				return -1;
 			}
 			break;
@@ -482,15 +434,15 @@ cli_add_tree(struct cli_node *parent, struct cli_tree *tree)
 		case CLI_STR_NODE:
 			s = &t->str;
 			if (cli_add_str(s->name, s->sfunc, s->string)) {
-				RTE_LOG(INFO, EAL,
-					"Add string %s failed\n", s->name);
+				RTE_LOG(ERR, EAL,
+				        "Add string %s failed\n", s->name);
 				return -1;
 			}
 			break;
 
 		case CLI_UNK_NODE:
 		default:
-			RTE_LOG(INFO, EAL, "Unknown Node type %d\n", t->type);
+			RTE_LOG(ERR, EAL, "Unknown Node type %d\n", t->type);
 			return 0;
 		}
 	}
@@ -584,7 +536,7 @@ cli_execute(void)
 		gb_reset_buf(gb);
 
 		gb_str_insert(gb, (char *)(uintptr_t)node->alias_str,
-					  strlen(node->alias_str));
+		              strlen(node->alias_str));
 
 		/* Add the extra line arguments */
 		sz = sz - node->name_sz;
@@ -614,96 +566,6 @@ cli_execute(void)
 	return ret;
 }
 
-/* Process the input for the CLI from the user */
-void
-cli_input(char *str, int n)
-{
-	char c;
-	int ret;
-
-	RTE_ASSERT(this_cli->gb != NULL);
-	RTE_ASSERT(str != NULL);
-
-	while (n--) {
-		c = *str++;
-
-		ret = vt100_parse_input(this_cli->vt, c);
-
-		if (ret < 0) {
-			if (ret == VT100_DONE)
-				if ((c >= ' ') && (c <= '~')) {
-					cli_write(&c, 1);	/* Output the character typed */
-
-					/* Add the character to the buffer */
-					gb_insert(this_cli->gb, c);
-
-					/* Display the rest of the line on insert */
-					cli_save_cursor();
-					cli_display_right();
-					cli_restore_cursor();
-				}
-		} else if (ret != 0)
-			/* Found a vt100 key sequence, execute function */
-			if (ret < VT100_MAX_KEYS)
-				vt100_cmd_list[ret].func();
-	}
-}
-
-/* Poll the I/O routine for characters */
-static int
-cli_poll(char *c)
-{
-	struct pollfd fds;
-
-	fds.fd      = fileno(this_scrn->fd_in);
-	fds.events  = POLLIN;
-	fds.revents = 0;
-
-	if (cli_use_timers())
-		rte_timer_manage();
-
-	if (poll(&fds, 1, 0)) {
-		if ((fds.revents & (POLLERR | POLLNVAL)) == 0) {
-			if ((fds.revents & POLLHUP))
-				this_cli->quit_flag = 1;
-			else if ((fds.revents & POLLIN))
-				if (read(fds.fd, c, 1) > 0)
-					return 1;
-		} else
-			this_cli->quit_flag = 1;
-	}
-	return 0;
-}
-
-/* Display a prompt and wait for a key press */
-char
-cli_pause(const char *msg, const char *keys)
-{
-	char prompt[128], c;
-
-	prompt[0] = '\0';
-
-	if (msg) {
-		strcpy(prompt, msg);
-		strcat(prompt, ": ");
-		cli_printf("%s", prompt);
-	}
-
-	if (!keys)
-		keys = " qQ\n\r" vt100_q_escape;
-
-	do {
-		if (cli_poll(&c))
-			if (strchr(keys, c)) {
-				/* clear the line of the prompt */
-				cli_printf("\r%*s\r", (int)strlen(prompt), " ");
-				return c;
-			}
-	} while (this_cli->quit_flag == 0);
-
-	return '\0';
-}
-
 /* Main entry point into the CLI system to start accepting user input */
 void
 cli_start(const char *msg)
@@ -713,14 +575,17 @@ cli_start(const char *msg)
 	RTE_ASSERT(this_cli != NULL);
 
 	cli_printf("\n** Version: %s, %s with%s timers\n", rte_version(),
-		   (msg == NULL) ? "Command Line Interface" : msg,
-		   (this_cli->flags & CLI_USE_TIMERS) ? "" : "out");
+	           (msg == NULL) ? "Command Line Interface" : msg,
+	           (this_cli->flags & CLI_USE_TIMERS) ? "" : "out");
 
-	this_cli->prompt(0);
+	this_cli->plen = this_cli->prompt(0);
+
+	/* Must be set before command files are executed */
+	this_cli->quit_flag = 0;
 
 	cli_execute_cmdfiles();
 
-	for (this_cli->quit_flag = 0; this_cli->quit_flag == 0; )
+	while(!this_cli->quit_flag)
 		if (cli_poll(&c))
 			cli_input(&c, 1);
 
@@ -760,26 +625,28 @@ cli_create_root(const char *dirname)
 }
 
 /* Default CLI prompt routine */
-static void
+static int
 __default_prompt(int cont)
 {
 	char *str = cli_cwd_path();
+	int len = 0;
 
 	if (strlen(str) > 1)	/* trim the trailing '/' from string */
 		str[strlen(str) - 1] = '\0';
 
-	vt100_color(SCRN_GREEN, SCRN_NO_CHANGE, SCRN_BOLD);
-	cli_printf("%s:", (cont) ? " >> " : "DPDK-cli");
-	vt100_color(SCRN_BLUE, SCRN_NO_CHANGE, SCRN_BOLD);
-	cli_printf("%s", str);
-	vt100_color(SCRN_DEFAULT_FG, SCRN_DEFAULT_BG, SCRN_OFF);
-	cli_printf("> ");
+	scrn_color(SCRN_GREEN, SCRN_NO_CHANGE, SCRN_OFF);
+	len += cli_printf("%s:", (cont) ? " >> " : "DPDK-cli");
+	scrn_color(SCRN_CYAN, SCRN_NO_CHANGE, SCRN_OFF);
+	len += cli_printf("%s", str);
+	scrn_color(SCRN_DEFAULT_FG, SCRN_DEFAULT_BG, SCRN_OFF);
+	len += cli_printf("> ");
+
+	return len;
 }
 
 /* Main entry point to create a CLI system */
 int
-cli_create(cli_prompt_t prompt, cli_tree_t default_func,
-	   int nb_entries, uint32_t nb_hist)
+cli_init(int nb_entries, uint32_t nb_hist)
 {
 	int i;
 	size_t size;
@@ -795,6 +662,8 @@ cli_create(cli_prompt_t prompt, cli_tree_t default_func,
 	memset(cli, '\0', sizeof(struct cli));
 
 	this_cli = cli;
+
+	cli->prompt = __default_prompt;
 
 	if (nb_entries == 0)
 		nb_entries = CLI_DEFAULT_NB_NODES;
@@ -827,7 +696,7 @@ cli_create(cli_prompt_t prompt, cli_tree_t default_func,
 	if (scrn_create_with_defaults(SCRN_THEME_ON))
 		goto error_exit;
 
-	cli->vt = vt100_create();
+	cli->vt = vt100_setup();
 	if (!cli->vt)
 		goto error_exit;
 
@@ -838,9 +707,6 @@ cli_create(cli_prompt_t prompt, cli_tree_t default_func,
 	cli->argv = calloc(CLI_MAX_ARGVS, sizeof(void *));
 	if (!cli->argv)
 		goto error_exit;
-
-	/* Set the user or default prompt routine */
-	cli->prompt = (prompt == NULL) ? __default_prompt : prompt;
 
 	/* Create the pool for the number of nodes */
 	node = cli->node_mem;
@@ -873,18 +739,24 @@ cli_create(cli_prompt_t prompt, cli_tree_t default_func,
 	if (!cli->env)
 		goto error_exit;
 
-	/* when null call our default tree setup routine */
-	if (default_func == NULL)
-		default_func = cli_default_tree_init;
-
-	/* now call the user supplied func or ours if default_func was NULL */
-	if (default_func())
-		goto error_exit;
-
 	return 0;
 
 error_exit:
 	cli_destroy();
+	return -1;
+}
+
+int
+cli_create(void)
+{
+	return cli_init(CLI_DEFAULT_NODES, CLI_DEFAULT_HIST_LINES);
+}
+
+int
+cli_create_with_defaults(void)
+{
+	if (cli_init(CLI_DEFAULT_NODES, CLI_DEFAULT_HIST_LINES) == 0)
+		return cli_setup_with_defaults();
 	return -1;
 }
 
@@ -898,7 +770,7 @@ cli_destroy(void)
 		return;
 
 	gb_destroy(cli->gb);
-	vt100_destroy(cli->vt);
+	vt100_free(cli->vt);
 	scrn_destroy();
 	cli_history_delete();
 
@@ -912,18 +784,35 @@ cli_destroy(void)
 	this_cli = NULL;
 }
 
-/* Helper routine around the cli_create() routine */
 int
-cli_create_with_defaults(void)
+cli_setup(cli_prompt_t prompt, cli_tree_t default_func)
 {
-	return cli_create(NULL, NULL, CLI_DEFAULT_NODES, CLI_DEFAULT_HIST_LINES);
+	if (!this_cli)
+		return -1;
+
+	/* Set the user or default prompt routine */
+	this_cli->prompt = (prompt == NULL) ? __default_prompt : prompt;
+
+	/* when null call our default tree setup routine */
+	if (default_func == NULL)
+		default_func = cli_default_tree_init;
+
+	/* now call the user supplied func or ours if default_func was NULL */
+	return default_func();
 }
 
 /* Helper routine around the cli_create() routine */
 int
-cli_create_with_tree(cli_tree_t tree)
+cli_setup_with_defaults(void)
 {
-	return cli_create(NULL, tree, CLI_DEFAULT_NODES, CLI_DEFAULT_HIST_LINES);
+	return cli_setup(NULL, NULL);
+}
+
+/* Helper routine around the cli_create() routine */
+int
+cli_setup_with_tree(cli_tree_t tree)
+{
+	return cli_setup(NULL, tree);
 }
 
 /* Add a new prompt routine to the CLI system */
@@ -943,6 +832,15 @@ cli_set_prompt(cli_prompt_t prompt)
 }
 
 /**
+ * set the callout function pointer to execute a lua file.
+ */
+void
+cli_set_lua_callback( int(*func)(void *, const char *))
+{
+	lua_dofile = func;
+}
+
+/**
  * Load and execute a command file or Lua script file.
  *
  */
@@ -955,19 +853,16 @@ cli_execute_cmdfile(const char *filename)
 	gb_reset_buf(this_cli->gb);
 
 	if (strstr(filename, ".lua") || strstr(filename, ".LUA") ) {
-#ifdef RTE_LIBRTE_LUA
 		if (!this_cli->user_state) {
-			cli_printf(">>> User State for CLI is not set for Lua\n");
+			cli_printf(">>> User State for CLI not set for Lua\n");
 			return -1;
 		}
-		/* Execute the Lua script file. */
-		if (luaL_dofile(this_cli->user_state, filename) != 0) {
-			cli_printf("%s", lua_tostring(this_cli->user_state, -1));
-			return -1;
-		}
-#else
-		cli_printf(">>> Lua is not enabled in configuration!\n");
-#endif
+		if (lua_dofile) {
+			/* Execute the Lua script file. */
+			if (lua_dofile(this_cli->user_state, filename) != 0)
+				return -1;
+		} else
+			cli_printf(">>> Lua is not enabled in configuration!\n");
 	} else {
 		FILE    *fd;
 		char buff[256];
@@ -989,11 +884,11 @@ int
 cli_execute_cmdfiles(void)
 {
 	int i, cnt;
-	const char *path;
 
 	cnt = this_cli->cmd_files.idx;
 
 	for (i = 0; i < cnt; i++) {
+		const char *path;
 		if ((path = this_cli->cmd_files.filename[i]) == NULL)
 			continue;
 

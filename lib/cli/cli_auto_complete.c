@@ -1,34 +1,7 @@
 /*-
- *   BSD LICENSE
+ * Copyright(c) 2016-2017 Intel Corporation. All rights reserved.
  *
- *   Copyright(c) 2016-2017 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include <fnmatch.h>
@@ -36,10 +9,9 @@
 #include <rte_string_fns.h>
 
 #include "cli.h"
+#include "cli_input.h"
 #include "cli_auto_complete.h"
-#ifndef RTE_LIBRTE_CLI
 #include "cli_string_fns.h"
-#endif
 
 static uint32_t
 _column_count(struct cli_node **nodes, uint32_t node_cnt, uint32_t *len)
@@ -62,7 +34,7 @@ _column_count(struct cli_node **nodes, uint32_t node_cnt, uint32_t *len)
 
 static int
 _print_nodes(struct cli_node **nodes, uint32_t node_cnt,
-	     uint32_t dir_only, char *match, struct cli_node **ret)
+             uint32_t dir_only, char *match, struct cli_node **ret)
 {
 	struct cli_node *n;
 	uint32_t i, cnt = 0, ccnt, found = 0, slen, csize;
@@ -153,16 +125,18 @@ complete_args(int argc, char **argv, uint32_t types)
 			}
 		}
 
-		stype = CLI_ALL_TYPE;			/* search for all nodes */
+		stype = CLI_ALL_TYPE;		/* search for all nodes */
 		if (argc > 1)
-			stype = CLI_OTHER_TYPE;		/* search for non-exe nodes */
+			stype = CLI_OTHER_TYPE;	/* search for non-exe nodes */
 
-		node_cnt = cli_node_list_with_type(node, stype, (void * *)&nodes);
+		node_cnt = cli_node_list_with_type(node, stype,
+			(void * *)&nodes);
 		p = strrchr(match, '/');
 		if (p)
 			match = ++p;
 	} else
-		node_cnt = cli_node_list_with_type(NULL, types, (void * *)&nodes);
+		node_cnt = cli_node_list_with_type(NULL, types,
+			(void * *)&nodes);
 
 	if (node_cnt) {
 		struct cli_node *mnode = NULL;
@@ -188,7 +162,7 @@ complete_args(int argc, char **argv, uint32_t types)
 			slen = strlen(match);
 			nlen = (strlen(node->name) - slen);
 
-			if (nlen > 0)	/* Add the rest of the matching command */
+			if (nlen > 0) /* Add the rest of the matching command */
 				gb_str_insert(gb, &node->name[slen], nlen);
 
 			if (is_directory(node))
@@ -228,7 +202,7 @@ cli_auto_complete(void)
 		ret = complete_args(argc, argv, CLI_ALL_TYPE);
 
 		if (ret)
-			cli_display_line();
+			cli_redisplay_line();
 		return;
 	}
 
@@ -236,12 +210,13 @@ cli_auto_complete(void)
 	if (gb_get_prev(this_cli->gb) != ' ') {
 		if (argc == 1)	/* Only one word then look for a command */
 			ret = complete_args(argc, argv, CLI_ALL_TYPE);
-		else		/* If more then one word then look for file/dir */
-			ret = complete_args(argc, argv, CLI_FILE_NODE | CLI_DIR_NODE);
+		else	/* If more then one word then look for file/dir */
+			ret = complete_args(argc, argv,
+				CLI_FILE_NODE | CLI_DIR_NODE);
 
 		/* if we get an error then redisplay the line */
 		if (ret)
-			cli_display_line();
+			cli_redisplay_line();
 	} else {
 		char *save = alloca(size + 1);
 
@@ -250,7 +225,7 @@ cli_auto_complete(void)
 
 		memset(save, '\0', size + 1);
 
-		/* Call function to print out help text, plus save a copy of line */
+		/* Call function to print out help text, plus save a copy */
 		gb_copy_to_buf(this_cli->gb, save, size);
 
 		/* Add the -? to the command */
@@ -264,6 +239,6 @@ cli_auto_complete(void)
 		/* insert the saved string back to the input buffer */
 		gb_str_insert(this_cli->gb, save, size);
 
-		cli_display_line();
+		cli_redisplay_line();
 	}
 }

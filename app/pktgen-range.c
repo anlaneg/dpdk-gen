@@ -1,35 +1,7 @@
 /*-
- * Copyright (c) <2010-2017>, Intel Corporation
- * All rights reserved.
+ * Copyright (c) <2010-2017>, Intel Corporation. All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * - Redistributions of source code must retain the above copyright
- *   notice, this list of conditions and the following disclaimer.
- *
- * - Redistributions in binary form must reproduce the above copyright
- *   notice, this list of conditions and the following disclaimer in
- *   the documentation and/or other materials provided with the
- *   distribution.
- *
- * - Neither the name of Intel Corporation nor the names of its
- *   contributors may be used to endorse or promote products derived
- *   from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
- * OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 /* Created 2010 by Keith Wiles @ intel.com */
 
@@ -135,6 +107,42 @@ pktgen_range_ctor(range_info_t *range, pkt_seq_t *pkt)
 				pkt->vlanid = p;
 			} else
 				pkt->vlanid = range->vlan_id;
+
+			if (unlikely(range->cos_inc != 0)) {
+				uint32_t p;
+				static uint8_t min_cos_set = 0;
+				if ((pkt->cos == MIN_COS) && !min_cos_set) {
+					p = 0;
+					min_cos_set = 1;
+				} else
+					p = pkt->cos;
+				p += range->cos_inc;
+				if (p < range->cos_min)
+					p = range->cos_max;
+				else if (p > range->cos_max)
+					p = range->cos_min;
+				pkt->cos = p;
+			} else
+				pkt->cos = range->cos;
+
+			if (unlikely(range->tos_inc != 0)) {
+				uint32_t p;
+				static uint8_t min_tos_set = 0;
+				if ((pkt->tos == MIN_TOS) && !min_tos_set) {
+					p = 0;
+					min_tos_set = 1;
+				} else
+					p = pkt->tos;
+				p += range->tos_inc;
+				if (p < range->tos_min)
+					p = range->tos_max;
+				else if (p > range->tos_max)
+					p = range->tos_min;
+				pkt->tos = p;
+			} else
+				pkt->tos = range->tos;
+
+
 
 			if (unlikely(range->pkt_size_inc != 0)) {
 				uint32_t p = pkt->pktSize;
@@ -254,6 +262,14 @@ pktgen_print_range(void)
 
 	row++;
 	scrn_printf(row++, 1, "%-*s", COLUMN_WIDTH_0, "vlan.id / inc");
+	scrn_printf(row++, 1, "%-*s", COLUMN_WIDTH_0, "    min / max");
+
+	row++;
+	scrn_printf(row++, 1, "%-*s", COLUMN_WIDTH_0, "cos / inc");
+	scrn_printf(row++, 1, "%-*s", COLUMN_WIDTH_0, "    min / max");
+
+	row++;
+	scrn_printf(row++, 1, "%-*s", COLUMN_WIDTH_0, "tos / inc");
 	scrn_printf(row++, 1, "%-*s", COLUMN_WIDTH_0, "    min / max");
 
 	row++;
@@ -384,6 +400,35 @@ pktgen_print_range(void)
 		row++;
 		snprintf(str,
 		         sizeof(str),
+		         "%d/%d",
+		         range->cos,
+		         range->cos_inc);
+		scrn_printf(row++, col, "%*s", COLUMN_WIDTH_1, str);
+		snprintf(str,
+		         sizeof(str),
+		         "%d/%d",
+		         range->cos_min,
+		         range->cos_max);
+		scrn_printf(row++, col, "%*s", COLUMN_WIDTH_1, str);
+
+		row++;
+		snprintf(str,
+		         sizeof(str),
+		         "%3d/%3d",
+		         range->tos,
+		         range->tos_inc);
+		scrn_printf(row++, col, "%*s", COLUMN_WIDTH_1, str);
+		snprintf(str,
+		         sizeof(str),
+		         "%3d/%3d",
+		         range->tos_min,
+		         range->tos_max);
+		scrn_printf(row++, col, "%*s", COLUMN_WIDTH_1, str);
+
+
+		row++;
+		snprintf(str,
+		         sizeof(str),
 		         "%4d/%4d",
 		         range->pkt_size + FCS_SIZE,
 		         range->pkt_size_inc);
@@ -509,6 +554,16 @@ pktgen_range_setup(port_info_t *info)
 	range->vlan_id_inc  = 0;
 	range->vlan_id_min  = MIN_VLAN_ID;
 	range->vlan_id_max  = MAX_VLAN_ID;
+
+	range->cos   	= info->cos;
+	range->cos_inc  = 0;
+	range->cos_min  = MIN_COS;
+	range->cos_max  = MAX_COS;
+
+	range->tos   	= info->tos;
+	range->tos_inc  = 0;
+	range->tos_min  = MIN_TOS;
+	range->tos_max  = MAX_TOS;
 
 	range->pkt_size     = MIN_PKT_SIZE;
 	range->pkt_size_inc = 0;

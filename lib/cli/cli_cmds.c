@@ -1,34 +1,7 @@
 /*-
- *   BSD LICENSE
+ * Copyright(c) 2016-2017 Intel Corporation. All rights reserved.
  *
- *   Copyright(c) 2016-2017 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include <stdio.h>
@@ -43,13 +16,13 @@
 #include <rte_string_fns.h>
 
 #include "cli.h"
+#include "cli_input.h"
 #include "cli_cmds.h"
 #include "cli_cmap.h"
 #include "cli_map.h"
 #include "cli_file.h"
-#ifndef RTE_LIBRTE_CLI
+#include "cli_help.h"
 #include "cli_string_fns.h"
-#endif
 
 static int
 __print_help(struct cli_node *node, char *search)
@@ -65,11 +38,13 @@ __print_help(struct cli_node *node, char *search)
 		if (is_executable(cmd)) {
 			if (search) {
 				if (strcmp(cmd->name, search) == 0) {
-					cli_printf("  %-16s %s\n", cmd->name, cmd->short_desc);
+					cli_printf("  %-16s %s\n", cmd->name,
+						cmd->short_desc);
 					return 1;
 				}
 			} else
-				cli_printf("  %-16s %s\n", cmd->name, cmd->short_desc);
+				cli_printf("  %-16s %s\n", cmd->name,
+					cmd->short_desc);
 		}
 	}
 	return 0;
@@ -95,10 +70,11 @@ chelp_cmd(int argc, char **argv)
 	if (optind < argc)
 		search = argv[optind];
 
-	cli_printf("*** DPDK Help ***\n");
+	cli_printf("*** CLI Help ***\n");
+	cli_printf("  Use <command> -? to show usage for a command\n");
 	cli_printf("  Use !<NN> to execute a history line\n");
 	cli_printf("  Use @<host command> to execute a host binary\n");
-	cli_printf("  Use Up/Down arrows to access history commands\n");
+	cli_printf("  Use Up/Down arrows to access history commands\n\n");
 	cli_printf("  Use 'chelp -a' to list all commands\n");
 
 	if (all == 0) {
@@ -278,7 +254,7 @@ scrn_cmd(int argc __rte_unused, char **argv __rte_unused)
 static int
 quit_cmd(int argc __rte_unused, char **argv __rte_unused)
 {
-	this_cli->quit_flag = 1;
+	cli_quit();
 	return 0;
 }
 
@@ -332,7 +308,8 @@ more_cmd(int argc, char **argv)
 			if (++k >= lines) {
 				k = 0;
 				c = cli_pause("More", NULL);
-				if ((c == vt100_escape) || (c == 'q') || (c == 'Q'))
+				if ((c == vt100_escape) ||
+				    (c == 'q') || (c == 'Q'))
 					break;
 			}
 		} while (n > 0);
@@ -386,6 +363,7 @@ core_cmd(int argc __rte_unused, char **argv __rte_unused)
 	cli_printf("Socket     : ");
 	for (i = 0; i < c->sid_cnt; i++)
 		cli_printf("%4d      ", i);
+	cli_printf("\n");
 
 	for (i = 0; i < c->cid_cnt; i++) {
 		cli_printf("  Core %3d : [%2d,%2d]   ", i,
@@ -415,6 +393,7 @@ huge_cmd(int argc __rte_unused, char **argv __rte_unused)
 	return 0;
 }
 
+#ifdef CLI_DEBUG_CMDS
 static int
 sizes_cmd(int argc, char **argv)
 {
@@ -438,6 +417,7 @@ sizes_cmd(int argc, char **argv)
 
 	return 0;
 }
+#endif
 
 static int
 path_cmd(int argc __rte_unused, char **argv __rte_unused)
@@ -462,40 +442,58 @@ path_cmd(int argc __rte_unused, char **argv __rte_unused)
 	return 0;
 }
 
+static const char *copyright =
+"   BSD LICENSE\n"
+"\n"
+"   Copyright(c) 2010-2017 Intel Corporation. All rights reserved.\n"
+"\n"
+"   Redistribution and use in source and binary forms, with or without\n"
+"   modification, are permitted provided that the following conditions\n"
+"   are met:\n"
+"\n"
+"     * Redistributions of source code must retain the above copyright\n"
+"       notice, this list of conditions and the following disclaimer.\n"
+"     * Redistributions in binary form must reproduce the above copyright\n"
+"       notice, this list of conditions and the following disclaimer in\n"
+"       the documentation and/or other materials provided with the\n"
+"       distribution.\n"
+"     * Neither the name of Intel Corporation nor the names of its\n"
+"       contributors may be used to endorse or promote products derived\n"
+"       from this software without specific prior written permission.\n"
+"\n"
+"   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS\n"
+"   \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT\n"
+"   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR\n"
+"   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT\n"
+"   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,\n"
+"   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT\n"
+"   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,\n"
+"   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY\n"
+"   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT\n"
+"   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE\n"
+"   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\n"
+"\n"
+"   SPDX-License-Identifier: BSD-3-Clause\n";
+
 static int
 copyright_file(struct cli_node *node, char *buff, int len, uint32_t flags)
 {
-	const char *data =
-		"   BSD LICENSE\n"
-		"\n"
-		"   Copyright(c) 2010-2017 Intel Corporation. All rights reserved.\n"
-		"   All rights reserved.\n"
-		"\n"
-		"   Redistribution and use in source and binary forms, with or without\n"
-		"   modification, are permitted provided that the following conditions\n"
-		"   are met:\n"
-		"\n"
-		"     * Redistributions of source code must retain the above copyright\n"
-		"       notice, this list of conditions and the following disclaimer.\n"
-		"     * Redistributions in binary form must reproduce the above copyright\n"
-		"       notice, this list of conditions and the following disclaimer in\n"
-		"       the documentation and/or other materials provided with the\n"
-		"       distribution.\n"
-		"     * Neither the name of Intel Corporation nor the names of its\n"
-		"       contributors may be used to endorse or promote products derived\n"
-		"       from this software without specific prior written permission.\n"
-		"\n"
-		"   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS\n"
-		"   \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT\n"
-		"   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR\n"
-		"   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT\n"
-		"   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,\n"
-		"   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT\n"
-		"   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,\n"
-		"   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY\n"
-		"   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT\n"
-		"   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE\n"
-		"   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\n";
+
+	if (is_file_open(flags)) {
+		node->file_data = (char *)(uintptr_t)copyright;
+		node->file_size = strlen(copyright);
+		node->fflags = CLI_DATA_RDONLY;
+		if (is_file_eq(flags, (CLI_FILE_APPEND | CLI_FILE_WR)))
+			node->foffset = node->file_size;
+		return 0;
+	}
+	return cli_file_handler(node, buff, len, flags);
+}
+
+static int
+version_file(struct cli_node *node, char *buff, int len, uint32_t flags)
+{
+	const char *data = rte_version();
 
 	if (is_file_open(flags)) {
 		node->file_data = (char *)(uintptr_t)data;
@@ -511,12 +509,21 @@ copyright_file(struct cli_node *node, char *buff, int len, uint32_t flags)
 static int
 sleep_cmd(int argc __rte_unused, char **argv)
 {
-	int cnt = (atoi(argv[1]) * 4);
+	uint32_t cnt = (atoi(argv[1]) * 4);
 
-	while (cnt--) {
-		if (cli_use_timers())
+	if (rte_get_timer_hz() == 0) {
+		cli_printf("rte_get_timer_hz() returned zero\n");
+		return 0;
+	}
+
+	if (cli_use_timers()) {
+		while (cnt--) {
 			rte_timer_manage();
-		rte_delay_ms(250);
+			rte_delay_ms(250);
+		}
+	} else {
+		while (cnt--)
+			rte_delay_ms(250);
 	}
 	return 0;
 }
@@ -538,38 +545,13 @@ delay_cmd(int argc __rte_unused, char **argv)
 	return 0;
 }
 
-static struct cli_map cli_debug_map[] = {
-	{ 10, "debug pci" },
-	{ 20, "debug dev" },
-	{ -1, NULL }
-};
-
-static int
-dbg_cmd(int argc, char **argv)
-{
-	struct cli_map *m;
-
-	m = cli_mapping(cli_debug_map, argc, argv);
-	if (!m)
-		return -1;
-	switch (m->index) {
-#if RTE_VERSION < RTE_VERSION_NUM(17, 5, 0, 0)
-	case 10: rte_eal_pci_dump(stdout);  break;
-#else
-	case 10: rte_pci_dump(stdout);  break;
-#endif
-	case 20: rte_eal_devargs_dump(stdout); break;
-	default:
-		return -1;
-	}
-	return 0;
-}
-
 static int
 mkdir_cmd(int argc, char **argv)
 {
-	if (argc != 2)
+	if (argc != 2) {
+		cli_printf("Must have at least one path/driectory\n");
 		return -1;
+	}
 
 	if (!cli_add_dir(argv[1], get_cwd()))
 		return -1;
@@ -608,6 +590,14 @@ static struct cli_map cli_env_map[] = {
 	{ -1, NULL }
 };
 
+static const char *cli_env_help[] = {
+	"env                       - Display current evironment variables",
+	"env get <string>          - Get the requested variable",
+	"env set <string> <string> - Set the given variable to string",
+	"env del <string>          - Delete the given variable",
+	NULL
+};
+
 static int
 env_cmd(int argc, char **argv)
 {
@@ -615,15 +605,17 @@ env_cmd(int argc, char **argv)
 
 	m = cli_mapping(cli_env_map, argc, argv);
 	if (!m)
-		return -1;
+		cli_cmd_error("Environment command error:", "Env", argc, argv);
 	switch (m->index) {
 	case 10: cli_env_show(this_cli->env); break;
 	case 20:
-		cli_printf("  \"%s\" = \"%s\"\n", argv[2], cli_env_get(this_cli->env, argv[2]));
+		cli_printf("  \"%s\" = \"%s\"\n", argv[2],
+			cli_env_get(this_cli->env, argv[2]));
 		break;
 	case 30: cli_env_set(this_cli->env, argv[2], argv[3]); break;
 	case 40: cli_env_del(this_cli->env, argv[2]); break;
 	default:
+		cli_help_show_group("env");
 		return -1;
 	}
 	return 0;
@@ -654,32 +646,45 @@ echo_cmd(int argc, char **argv)
 	return 0;
 }
 
+static int
+version_cmd(int argc __rte_unused, char **argv __rte_unused)
+{
+	cli_printf("Version: %s\n", rte_version());
+	return 0;
+}
+
 static struct cli_tree cli_default_tree[] = {
-	c_file("copyright", copyright_file, "DPDK copyright information"),
-	c_dir("/sbin"),
-	c_cmd("delay",      delay_cmd,  "delay a number of milliseconds"),
-	c_cmd("sleep",      sleep_cmd,  "delay a number of seconds"),
-	c_cmd("chelp",      chelp_cmd,  "CLI help - display information for DPDK"),
-	c_cmd("mkdir",      mkdir_cmd,  "create a directory"),
-	c_cmd("rm",         rm_cmd,     "remove a file or directory"),
-	c_cmd("ls",         ls_cmd,     "ls [-lr] <dir> # list current directory"),
-	c_cmd("cd",         cd_cmd,     "cd <dir> # change working directory"),
-	c_cmd("pwd",        pwd_cmd,    "pwd # display current working directory"),
-	c_cmd("screen.clear", scrn_cmd, "screen.clear # clear the screen"),
-	c_cmd("quit",       quit_cmd,   "quit # quit the application"),
-	c_cmd("history",    hist_cmd,   "history # display the current history"),
-	c_cmd("more",       more_cmd,   "more <file> # display a file content"),
-	c_cmd("sizes",      sizes_cmd,  "sizes # display some internal sizes"),
-	c_cmd("cmap",       core_cmd,   "cmap # display the core mapping"),
-	c_cmd("hugepages",  huge_cmd,   "hugepages # display hugepage info"),
-	c_cmd("path",       path_cmd,   "display the command path list"),
-	c_cmd("dbg",        dbg_cmd,    "debug commands"),
-	c_cmd("env",        env_cmd,    "Set up environment variables"),
-	c_cmd("script",     script_cmd,	"load and process cli command files"),
-	c_cmd("echo",       echo_cmd,   "echo a string to the screen"),
-	c_str("SHELL",      NULL,       "DNET CLI shell"),
-	c_str("DPDK_VER",   ver_cmd,	""),
-	c_end()
+c_file("copyright", copyright_file, "DPDK copyright information"),
+c_file("dpdk-version",   version_file,   "DPDK version"),
+c_bin("/sbin"),
+
+c_cmd("delay",      delay_cmd,  "delay a number of milliseconds"),
+c_cmd("sleep",      sleep_cmd,  "delay a number of seconds"),
+c_cmd("chelp",      chelp_cmd,  "CLI help - display information for DPDK"),
+c_cmd("mkdir",      mkdir_cmd,  "create a directory"),
+c_cmd("rm",         rm_cmd,     "remove a file or directory"),
+c_cmd("ls",         ls_cmd,     "ls [-lr] <dir> # list current directory"),
+c_cmd("cd",         cd_cmd,     "cd <dir> # change working directory"),
+c_cmd("pwd",        pwd_cmd,    "pwd # display current working directory"),
+c_cmd("screen.clear", scrn_cmd, "screen.clear # clear the screen"),
+c_cmd("quit",       quit_cmd,   "quit # quit the application"),
+c_cmd("history",    hist_cmd,   "history # display the current history"),
+c_cmd("more",       more_cmd,   "more <file> # display a file content"),
+#ifdef CLI_DEBUG_CMDS
+c_cmd("sizes",      sizes_cmd,  "sizes # display some internal sizes"),
+#endif
+c_cmd("cmap",       core_cmd,   "cmap # display the core mapping"),
+c_cmd("hugepages",  huge_cmd,   "hugepages # display hugepage info"),
+c_cmd("path",       path_cmd,   "display the execution path for commands"),
+c_cmd("env",        env_cmd,    "Show/del/get/set environment variables"),
+c_cmd("script",     script_cmd,	"load and process cli command files"),
+c_cmd("echo",       echo_cmd,   "simple echo a string to the screen"),
+c_cmd("version",    version_cmd,"Display version information"),
+
+/* The following are environment variables */
+c_str("SHELL",      NULL,       "CLI shell"),
+c_str("DPDK_VER",   ver_cmd,	""),
+c_end()
 };
 
 int
@@ -687,12 +692,19 @@ cli_default_tree_init(void)
 {
 	int ret = 0;
 
+	if (this_cli->flags & CLI_DEFAULT_TREE)
+		return ret;
+
+	this_cli->flags |= CLI_DEFAULT_TREE;
+
 	/* Add the list of commands/dirs in cli_cmds.c file */
 	if ((ret = cli_add_tree(NULL, cli_default_tree)) == 0)
-		ret = cli_add_bin_path("/sbin");
+		cli_help_add("Env", cli_env_map, cli_env_help);
 
-	if (ret)
+	if (ret) {
 		RTE_LOG(ERR, EAL, "Unable to add commands or directoies\n");
+		this_cli->flags &= ~CLI_DEFAULT_TREE;
+	}
 
 	return ret;
 }

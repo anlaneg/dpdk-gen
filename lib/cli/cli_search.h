@@ -1,34 +1,7 @@
 /*-
- *   BSD LICENSE
+ * Copyright(c) 2016-2017 Intel Corporation. All rights reserved.
  *
- *   Copyright(c) 2016-2017 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef _CLI_SEARCH_H_
@@ -53,18 +26,18 @@ extern "C" {
 #endif
 
 typedef union {
-    void *voidp;                    /** void * value */
-    char chr[8];                    /** 8 characters */
-    uint64_t u64;                   /** 64bit value */
-    uint32_t u32[2];                /** 2 32bit value */
-    uint16_t u16[4];                /** 4 16bit values */
+	void *voidp;                    /** void * value */
+	char chr[8];                    /** 8 characters */
+	uint64_t u64;                   /** 64bit value */
+	uint32_t u32[2];                /** 2 32bit value */
+	uint16_t u16[4];                /** 4 16bit values */
 } arg_u;                            /** Union for argument word */
 
 typedef struct {
-    arg_u   arg1;                   /* Argument Word 1 */
-    arg_u   arg2;                   /* Argument Word 2 */
-    arg_u   arg3;                   /* Argument Word 3 */
-    arg_u   arg4;                   /* Argument Word 4 */
+	arg_u   arg1;                   /* Argument Word 1 */
+	arg_u   arg2;                   /* Argument Word 2 */
+	arg_u   arg3;                   /* Argument Word 3 */
+	arg_u   arg4;                   /* Argument Word 4 */
 } args_t;                           /* 32 bytes of arguments */
 
 struct cli;
@@ -72,7 +45,7 @@ struct cli_node;
 
 typedef int (*cli_scan_t)(struct cli_node *node,
                           uint32_t flags, args_t *args);
-    /** typedef of function passed in cli_scan_directory() */
+/** typedef of function passed in cli_scan_directory() */
 
 /**
 * Scan a directory and call the func with the node found.
@@ -156,7 +129,7 @@ uint32_t cli_path_cmd_count(void);
 *   Number of nodes found of this type in the directory
 */
 uint32_t cli_node_list_with_type(struct cli_node *node,
-								 uint32_t flags, void **ret);
+                                 uint32_t flags, void **ret);
 
 /**
 * Free a node back to the free list

@@ -1,46 +1,17 @@
 /*-
- *   BSD LICENSE
+ * Copyright(c) 2016-2017 Intel Corporation. All rights reserved.
  *
- *   Copyright(c) 2016-2017 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include <rte_string_fns.h>
 
 #include "cli.h"
-#ifndef RTE_LIBRTE_CLI
 #include "cli_string_fns.h"
-#endif
 
 static int
 __count_nodes(struct cli_node *node,
-	      uint32_t flags, args_t *args)
+              uint32_t flags, args_t *args)
 {
 	if (flags & node->type)
 		args->arg1.u32[0]++;
@@ -157,7 +128,7 @@ cli_node_list_free(void *nodes)
 
 int
 cli_scan_directory(struct cli_node *dir,
-		   cli_scan_t func, uint32_t flags, args_t *args)
+                   cli_scan_t func, uint32_t flags, args_t *args)
 {
 	struct cli_node *node;
 	int ret = 0;
@@ -192,7 +163,7 @@ cli_scan_path(const char *path, cli_scan_t func, uint32_t flags, args_t *args)
 struct cli_node *
 cli_search_dir(struct cli_node *dir, const char *name, uint32_t type)
 {
-    struct cli_node *node;
+	struct cli_node *node;
 
 	if (!name || (*name == '\0'))
 		return NULL;
@@ -271,10 +242,10 @@ _leave:
 struct cli_node *
 cli_last_node_in_path(const char *path)
 {
-    struct cli_node *node, *dir;
-    char *my_path = NULL;
-    char *argv[CLI_MAX_ARGVS+1];
-    int n, i;
+	struct cli_node *node, *dir;
+	char *my_path = NULL;
+	char *argv[CLI_MAX_ARGVS+1];
+	int n, i;
 
 	if (!path || (*path == '\0'))
 		return get_cwd();
@@ -317,8 +288,8 @@ cli_last_node_in_path(const char *path)
 struct cli_node *
 cli_find_cmd(const char *path)
 {
-    struct cli_node *cmd, *dir;
-    int i;
+	struct cli_node *cmd, *dir;
+	int i;
 
 	if (cli_find_node(path, &cmd))
 		return cmd;

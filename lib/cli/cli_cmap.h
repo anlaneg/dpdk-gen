@@ -1,35 +1,7 @@
 /*-
- * Copyright (c) <2017>, Intel Corporation
- * All rights reserved.
+ * Copyright (c) <2017>, Intel Corporation. All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * - Redistributions of source code must retain the above copyright
- *   notice, this list of conditions and the following disclaimer.
- *
- * - Redistributions in binary form must reproduce the above copyright
- *   notice, this list of conditions and the following disclaimer in
- *   the documentation and/or other materials provided with the
- *   distribution.
- *
- * - Neither the name of Intel Corporation nor the names of its
- *   contributors may be used to endorse or promote products derived
- *   from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
- * OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef __CLI_CMAP_H
@@ -43,7 +15,7 @@
 
 typedef union {
 	struct {
-		uint8_t lid;		/* Logical core ID */
+		uint8_t lid;	/* Logical core ID */
 		uint8_t sid;	/* CPU socket ID */
 		uint8_t cid;	/* Physical CPU core ID */
 		uint8_t tid;	/* Hyper-thread ID */
@@ -52,17 +24,17 @@ typedef union {
 } lc_info_t;
 
 typedef struct lcore {
-    struct lcore *next;
-    lc_info_t u;
+	struct lcore *next;
+	lc_info_t u;
 } lcore_t;
 
 struct cmap {
-    uint16_t num_cores;
-    uint16_t sid_cnt;
-    uint16_t cid_cnt;
-    uint16_t tid_cnt;
-    lc_info_t *linfo;
-    char *model;
+	uint16_t num_cores;
+	uint16_t sid_cnt;
+	uint16_t cid_cnt;
+	uint16_t tid_cnt;
+	lc_info_t *linfo;
+	char *model;
 };
 
 typedef lcore_t *(*do_line_fn)(const char *line, lcore_t *);
@@ -70,8 +42,8 @@ typedef unsigned (*getter_fn)(const lcore_t *);
 typedef void (*setter_fn)(lcore_t *, unsigned new_val);
 
 typedef struct action {
-    const char *desc;
-    do_line_fn fn;
+	const char *desc;
+	do_line_fn fn;
 } action_t;
 
 /**
@@ -109,7 +81,7 @@ void cmap_free(struct cmap *cmap);
 static inline unsigned int
 cmap_socket_id(const lcore_t *lc)
 {
-    return lc->u.sid;
+	return lc->u.sid;
 }
 
 /**
@@ -125,7 +97,7 @@ cmap_socket_id(const lcore_t *lc)
 static inline void
 cmap_set_socket_id(lcore_t *lc, unsigned v)
 {
-    lc->u.sid = v;
+	lc->u.sid = v;
 }
 
 /**
@@ -139,7 +111,7 @@ cmap_set_socket_id(lcore_t *lc, unsigned v)
 static inline unsigned int
 cmap_core_id(const lcore_t *lc)
 {
-    return lc->u.cid;
+	return lc->u.cid;
 }
 
 /**
@@ -155,7 +127,7 @@ cmap_core_id(const lcore_t *lc)
 static inline void
 cmap_set_core_id(lcore_t *lc, unsigned v)
 {
-    lc->u.cid = v;
+	lc->u.cid = v;
 }
 
 /**
@@ -169,7 +141,7 @@ cmap_set_core_id(lcore_t *lc, unsigned v)
 static inline unsigned int
 cmap_thread_id(const lcore_t *lc)
 {
-        return lc->u.tid;
+	return lc->u.tid;
 }
 
 /**
@@ -183,25 +155,17 @@ cmap_thread_id(const lcore_t *lc)
 static inline unsigned int
 cmap_cnt(lcore_t *lc, getter_fn get)
 {
-    unsigned cnt = 0;
+	unsigned cnt = 0;
 
 	if (!get)
 		return cnt;
 
-    while (lc) {
-        if (cnt < get(lc))
-            cnt = get(lc);
-        lc = lc->next;
-    }
-    return cnt + 1;
+	while (lc) {
+		if (cnt < get(lc))
+			cnt = get(lc);
+		lc = lc->next;
+	}
+	return cnt + 1;
 }
-
-/**
- * Dump out the CMAP data
- *
- * @param f
- *   The file descriptor for output
- */
-void cmap_dump(FILE *f);
 
 #endif  /*_CLI_CMAP_H */

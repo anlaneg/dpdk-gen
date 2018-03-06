@@ -1,34 +1,7 @@
 /*-
- *   BSD LICENSE
+ * Copyright(c) 2016-2017 Intel Corporation. All rights reserved.
  *
- *   Copyright(c) 2016-2017 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 /* inspired by an email/code written by: Joseph H. Allen, 9/10/89 */
 
@@ -53,11 +26,11 @@ extern "C" {
 #define GB_DEFAULT_GAP_SIZE     8
 
 struct gapbuf {
-    char *buf;          /** Pointer to start of buffer */
-    char *ebuf;         /** Pointer to end of buffer */
-    char *point;        /** Pointer to point in the buffer */
-    char *gap;          /** Pointer to the start of the gap */
-    char *egap;         /** Pointer to the end of the gap */
+	char *buf;          /** Pointer to start of buffer */
+	char *ebuf;         /** Pointer to end of buffer */
+	char *point;        /** Pointer to point in the buffer */
+	char *gap;          /** Pointer to the start of the gap */
+	char *egap;         /** Pointer to the end of the gap */
 };
 
 /**
@@ -139,7 +112,7 @@ void gb_dump(struct gapbuf *gb, const char * msg);
 static inline uint32_t
 gb_buf_size(struct gapbuf *gb)
 {
-    return gb->ebuf - gb->buf;
+	return gb->ebuf - gb->buf;
 }
 
 /**
@@ -153,7 +126,7 @@ gb_buf_size(struct gapbuf *gb)
 static inline uint32_t
 gb_gap_size(struct gapbuf *gb)
 {
-    return gb->egap - gb->gap;
+	return gb->egap - gb->gap;
 }
 
 /**
@@ -167,7 +140,7 @@ gb_gap_size(struct gapbuf *gb)
 static inline uint32_t
 gb_data_size(struct gapbuf *gb)
 {
-    return (gb->ebuf - gb->buf) - (gb->egap - gb->gap);
+	return (gb->ebuf - gb->buf) - (gb->egap - gb->gap);
 }
 
 /**
@@ -181,7 +154,7 @@ gb_data_size(struct gapbuf *gb)
 static inline char *
 gb_start_of_buf(struct gapbuf *gb)
 {
-    return gb->buf;
+	return gb->buf;
 }
 
 /**
@@ -195,7 +168,7 @@ gb_start_of_buf(struct gapbuf *gb)
 static inline char *
 gb_start_of_gap(struct gapbuf *gb)
 {
-    return gb->gap;
+	return gb->gap;
 }
 
 /**
@@ -209,7 +182,7 @@ gb_start_of_gap(struct gapbuf *gb)
 static inline char *
 gb_end_of_gap(struct gapbuf *gb)
 {
-    return gb->egap;
+	return gb->egap;
 }
 
 /**
@@ -223,7 +196,7 @@ gb_end_of_gap(struct gapbuf *gb)
 static inline char *
 gb_end_of_buf(struct gapbuf *gb)
 {
-    return gb->ebuf;
+	return gb->ebuf;
 }
 
 /**
@@ -237,7 +210,7 @@ gb_end_of_buf(struct gapbuf *gb)
 static inline char *
 gb_point_at(struct gapbuf *gb)
 {
-    return gb->point;
+	return gb->point;
 }
 
 /**
@@ -251,7 +224,7 @@ gb_point_at(struct gapbuf *gb)
 static inline int
 gb_point_at_start(struct gapbuf *gb)
 {
-    return (gb->point == gb->buf);
+	return (gb->point == gb->buf);
 }
 
 /**
@@ -265,7 +238,7 @@ gb_point_at_start(struct gapbuf *gb)
 static inline int
 gb_point_at_end(struct gapbuf *gb)
 {
-    return (gb->ebuf == gb->point);
+	return (gb->ebuf == gb->point);
 }
 
 /**
@@ -279,7 +252,7 @@ gb_point_at_end(struct gapbuf *gb)
 static inline int
 gb_point_at_gap(struct gapbuf *gb)
 {
-    return (gb->gap == gb->point);
+	return (gb->gap == gb->point);
 }
 
 /**
@@ -295,13 +268,13 @@ gb_point_at_gap(struct gapbuf *gb)
 static inline void
 gb_set_point(struct gapbuf *gb, int idx)
 {
-    if (idx == -1) {
-        gb->point = gb->ebuf;
-        return;
-    }
-    gb->point = gb->buf + idx;
-    if (gb->point > gb->gap)
-        gb->point += gb->egap - gb->gap;
+	if (idx == -1) {
+		gb->point = gb->ebuf;
+		return;
+	}
+	gb->point = gb->buf + idx;
+	if (gb->point > gb->gap)
+		gb->point += gb->egap - gb->gap;
 }
 
 /**
@@ -315,10 +288,10 @@ gb_set_point(struct gapbuf *gb, int idx)
 static inline int
 gb_point_offset(struct gapbuf *gb)
 {
-    if (gb->point > gb->egap)
-        return (gb->point - gb->buf) - (gb->egap - gb->gap);
-    else
-        return gb->point - gb->buf;
+	if (gb->point > gb->egap)
+		return (gb->point - gb->buf) - (gb->egap - gb->gap);
+	else
+		return gb->point - gb->buf;
 }
 
 /**
@@ -332,8 +305,8 @@ gb_point_offset(struct gapbuf *gb)
 static inline int
 gb_eof(struct gapbuf *gb)
 {
-    return (gb->point == gb->gap)?
-                (gb->egap == gb->ebuf) : (gb->point == gb->ebuf);
+	return (gb->point == gb->gap)?
+	       (gb->egap == gb->ebuf) : (gb->point == gb->ebuf);
 }
 
 /********************************************************/
@@ -349,33 +322,33 @@ gb_eof(struct gapbuf *gb)
 static inline void
 gb_move_gap_to_point(struct gapbuf *gb)
 {
-    if (gb->point == gb->gap)
-        return;
+	if (gb->point == gb->gap)
+		return;
 
-    if (gb->point == gb->egap)
-        gb->point = gb->gap;
-    else {
-        int cnt;
+	if (gb->point == gb->egap)
+		gb->point = gb->gap;
+	else {
+		int cnt;
 
-        if (gb->point < gb->gap) {
-            cnt = gb->gap - gb->point;
-            memmove(gb->egap - cnt, gb->point, cnt);
-            gb->egap -= cnt;
-            gb->gap = gb->point;
-        } else if (gb->point > gb->egap) {
-            cnt = gb->point - gb->egap;
-            memmove(gb->gap, gb->egap, cnt);
-            gb->gap += cnt;
-            gb->egap = gb->point;
-            gb->point = gb->gap;
-        } else {    /* This case when point is between gap and egap. */
-            cnt = gb->point - gb->gap;
-            memmove(gb->gap, gb->egap, cnt);
-            gb->egap += cnt;
-            gb->gap += cnt;
-            gb->point = gb->gap;
-        }
-    }
+		if (gb->point < gb->gap) {
+			cnt = gb->gap - gb->point;
+			memmove(gb->egap - cnt, gb->point, cnt);
+			gb->egap -= cnt;
+			gb->gap = gb->point;
+		} else if (gb->point > gb->egap) {
+			cnt = gb->point - gb->egap;
+			memmove(gb->gap, gb->egap, cnt);
+			gb->gap += cnt;
+			gb->egap = gb->point;
+			gb->point = gb->gap;
+		} else {    /* This case when point is between gap and egap. */
+			cnt = gb->point - gb->gap;
+			memmove(gb->gap, gb->egap, cnt);
+			gb->egap += cnt;
+			gb->gap += cnt;
+			gb->point = gb->gap;
+		}
+	}
 }
 
 /**
@@ -391,20 +364,20 @@ gb_move_gap_to_point(struct gapbuf *gb)
 static inline void
 gb_expand_buf(struct gapbuf *gb, uint32_t more)
 {
-    if (((gb->ebuf - gb->buf) + more)  > gb_buf_size(gb)) {
-        char *old = gb->buf;
+	if (((gb->ebuf - gb->buf) + more)  > gb_buf_size(gb)) {
+		char *old = gb->buf;
 
-        more = (gb->ebuf - gb->buf) + more + GB_DEFAULT_GAP_SIZE;
+		more = (gb->ebuf - gb->buf) + more + GB_DEFAULT_GAP_SIZE;
 
-        gb->buf = (char *)realloc(gb->buf, more);
-        if (gb->buf == NULL)
-            rte_panic("realloc(%d) in %s failed\n", more, __func__);
+		gb->buf = (char *)realloc(gb->buf, more);
+		if (gb->buf == NULL)
+			rte_panic("realloc(%d) in %s failed\n", more, __func__);
 
-        gb->point   += (gb->buf - old);
-        gb->ebuf    += (gb->buf - old);
-        gb->gap     += (gb->buf - old);
-        gb->egap    += (gb->buf - old);
-    }
+		gb->point   += (gb->buf - old);
+		gb->ebuf    += (gb->buf - old);
+		gb->gap     += (gb->buf - old);
+		gb->egap    += (gb->buf - old);
+	}
 }
 
 /**
@@ -420,16 +393,16 @@ gb_expand_buf(struct gapbuf *gb, uint32_t more)
 static inline void
 gb_expand_gap(struct gapbuf *gb, uint32_t size)
 {
-    if (size > gb_gap_size(gb)) {
-        size += GB_DEFAULT_GAP_SIZE;
+	if (size > gb_gap_size(gb)) {
+		size += GB_DEFAULT_GAP_SIZE;
 
-        gb_expand_buf(gb, size);
+		gb_expand_buf(gb, size);
 
-        memmove(gb->egap + size, gb->egap, gb->ebuf - gb->egap);
+		memmove(gb->egap + size, gb->egap, gb->ebuf - gb->egap);
 
-        gb->egap += size;
-        gb->ebuf += size;
-    }
+		gb->egap += size;
+		gb->ebuf += size;
+	}
 }
 
 /**
@@ -443,10 +416,10 @@ gb_expand_gap(struct gapbuf *gb, uint32_t size)
 static inline char
 gb_get(struct gapbuf *gb)
 {
-    if (gb->point == gb->gap)
-        gb->point = gb->egap;
+	if (gb->point == gb->gap)
+		gb->point = gb->egap;
 
-    return *gb->point;
+	return *gb->point;
 }
 
 /**
@@ -460,17 +433,17 @@ gb_get(struct gapbuf *gb)
 static inline char
 gb_get_prev(struct gapbuf *gb)
 {
-    if (gb->point == gb->egap)
-        gb->point = gb->gap;
+	if (gb->point == gb->egap)
+		gb->point = gb->gap;
 
-    if (gb->point == gb->buf) {
+	if (gb->point == gb->buf) {
 		if (gb->point == gb->gap)
 			return '\0';
 		else
-	        return *gb->point;
+			return *gb->point;
 	}
 
-    return *(gb->point - 1);
+	return *(gb->point - 1);
 }
 
 /**
@@ -484,13 +457,13 @@ gb_get_prev(struct gapbuf *gb)
 static inline char
 gb_get_next(struct gapbuf *gb)
 {
-    if (gb->point == gb->gap)
-        gb->point = gb->egap;
+	if (gb->point == gb->gap)
+		gb->point = gb->egap;
 
-    if (gb->point == gb->ebuf)
-        return *gb->point;
+	if (gb->point == gb->ebuf)
+		return *gb->point;
 
-    return *(gb->point + 1);
+	return *(gb->point + 1);
 }
 
 /**
@@ -506,15 +479,15 @@ gb_get_next(struct gapbuf *gb)
 static inline void
 gb_put(struct gapbuf *gb, char c)
 {
-    if (gb->point == gb->gap)
-        gb->point = gb->egap;
+	if (gb->point == gb->gap)
+		gb->point = gb->egap;
 
-    if (gb->point == gb->ebuf) {
-        gb_expand_buf(gb, 1);
-        gb->ebuf++;
-    }
+	if (gb->point == gb->ebuf) {
+		gb_expand_buf(gb, 1);
+		gb->ebuf++;
+	}
 
-    *gb->point = c;
+	*gb->point = c;
 }
 
 /**
@@ -528,12 +501,12 @@ gb_put(struct gapbuf *gb, char c)
 static inline char
 gb_getc(struct gapbuf *gb)
 {
-    if (gb->point == gb->gap) {
-        gb->point = gb->egap + 1;
-        return *gb->egap;
-    }
+	if (gb->point == gb->gap) {
+		gb->point = gb->egap + 1;
+		return *gb->egap;
+	}
 
-    return *(gb->point++);
+	return *(gb->point++);
 }
 
 /**
@@ -549,10 +522,10 @@ gb_getc(struct gapbuf *gb)
 static inline char
 gb_getc_prev(struct gapbuf *gb)
 {
-    if (gb->point == gb->egap)
-        gb->point = gb->gap;
+	if (gb->point == gb->egap)
+		gb->point = gb->gap;
 
-    return *(--gb->point);
+	return *(--gb->point);
 }
 
 /**
@@ -568,14 +541,14 @@ gb_getc_prev(struct gapbuf *gb)
 static inline void
 gb_putc(struct gapbuf *gb, char c)
 {
-    gb_move_gap_to_point(gb);
+	gb_move_gap_to_point(gb);
 
-    if (gb->point == gb->ebuf) {
-        gb_expand_buf(gb, 1);
-        gb->ebuf++;
-    }
-    *(gb->gap++) = c;
-    gb->point++;
+	if (gb->point == gb->ebuf) {
+		gb_expand_buf(gb, 1);
+		gb->ebuf++;
+	}
+	*(gb->gap++) = c;
+	gb->point++;
 }
 
 /**
@@ -591,13 +564,13 @@ gb_putc(struct gapbuf *gb, char c)
 static inline void
 gb_insert(struct gapbuf *gb, char c)
 {
-    if (gb->point != gb->gap)
-        gb_move_gap_to_point(gb);
+	if (gb->point != gb->gap)
+		gb_move_gap_to_point(gb);
 
-    if (gb->gap == gb->egap)
-        gb_expand_gap(gb, 1);
+	if (gb->gap == gb->egap)
+		gb_expand_gap(gb, 1);
 
-    gb_putc(gb, c);
+	gb_putc(gb, c);
 }
 
 /**
@@ -613,10 +586,10 @@ gb_insert(struct gapbuf *gb, char c)
 static inline void
 gb_del(struct gapbuf *gb, int cnt)
 {
-    if (gb->point != gb->gap)
-        gb_move_gap_to_point(gb);
+	if (gb->point != gb->gap)
+		gb_move_gap_to_point(gb);
 
-    gb->egap += cnt;
+	gb->egap += cnt;
 }
 
 /**
@@ -627,21 +600,31 @@ gb_del(struct gapbuf *gb, int cnt)
  * @param str
  *   String to put at point
  * @param
- *   Size of the string to insert at point
+ *   Size of the string to insert at point, if zero use strlen() to find length
  * @return
- *   N/AS
+ *   Number of bytes inserted
  */
-static inline void
+static inline uint32_t
 gb_str_insert(struct gapbuf *gb, char *str, uint32_t size)
 {
-    gb_move_gap_to_point(gb);
+	int len;
 
-    if (size > gb_gap_size(gb))
-        gb_expand_gap(gb, size);
+	if (size == 0)
+		size = strlen(str);
+	if (size == 0)
+		return 0;
 
-    do {
-        gb_putc(gb, *str++);
-    } while(--size);
+	gb_move_gap_to_point(gb);
+
+	if (size > gb_gap_size(gb))
+		gb_expand_gap(gb, size);
+
+	len = size;
+	do {
+		gb_putc(gb, *str++);
+	} while(--size);
+
+	return len;
 }
 
 /********************************************************/
@@ -657,7 +640,7 @@ gb_str_insert(struct gapbuf *gb, char *str, uint32_t size)
 static inline uint32_t
 gb_left_data_size(struct gapbuf *gb)
 {
-    return gb->gap - gb->buf;
+	return gb->gap - gb->buf;
 }
 
 /**
@@ -671,9 +654,9 @@ gb_left_data_size(struct gapbuf *gb)
 static inline uint32_t
 gb_right_data_size(struct gapbuf *gb)
 {
-    if (gb_eof(gb))
-        return 0;
-    return gb->ebuf - gb->egap;
+	if (gb_eof(gb))
+		return 0;
+	return gb->ebuf - gb->egap;
 }
 
 /**
@@ -687,9 +670,9 @@ gb_right_data_size(struct gapbuf *gb)
 static inline void
 gb_move_right(struct gapbuf *gb)
 {
-    if (gb->point == gb->gap)
-        gb->point = gb->egap;
-    gb->point = ((gb->point + 1) > gb->ebuf)? gb->ebuf : (gb->point + 1);
+	if (gb->point == gb->gap)
+		gb->point = gb->egap;
+	gb->point = ((gb->point + 1) > gb->ebuf)? gb->ebuf : (gb->point + 1);
 }
 
 /**
@@ -703,9 +686,9 @@ gb_move_right(struct gapbuf *gb)
 static inline void
 gb_move_left(struct gapbuf *gb)
 {
-    if (gb->point == gb->egap)
-        gb->point = gb->gap;
-    gb->point = ((gb->point - 1) < gb->buf)? gb->buf : (gb->point - 1);
+	if (gb->point == gb->egap)
+		gb->point = gb->gap;
+	gb->point = ((gb->point - 1) < gb->buf)? gb->buf : (gb->point - 1);
 }
 
 #ifdef __cplusplus

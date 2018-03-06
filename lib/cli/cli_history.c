@@ -1,34 +1,7 @@
 /*-
- *   BSD LICENSE
+ * Copyright(c) 2016-2017 Intel Corporation. All rights reserved.
  *
- *   Copyright(c) 2016-2017 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "cli.h"
@@ -44,8 +17,7 @@ cli_hist_alloc(void)
 
 	if (!CIRCLEQ_EMPTY(&cli->free_hist)) {
 		hist = (struct cli_hist *)CIRCLEQ_FIRST(&cli->free_hist);
-		if (hist)
-			CIRCLEQ_REMOVE(&cli->free_hist, hist, next);
+		CIRCLEQ_REMOVE(&cli->free_hist, hist, next);
 	}
 	return hist;
 }
@@ -118,11 +90,12 @@ cli_history_line(int lineno)
 	if (!cli || !cli->hist_mem)
 		return NULL;
 
-	if (!CIRCLEQ_EMPTY(&cli->hd_hist))
+	if (!CIRCLEQ_EMPTY(&cli->hd_hist)) {
 		CIRCLEQ_FOREACH(h, &cli->hd_hist, next) {
 			if (i++ == lineno)
 				return h->line;
 		}
+	}
 	return NULL;
 }
 
@@ -137,8 +110,13 @@ cli_history_prev(void)
 	if (!CIRCLEQ_EMPTY(&cli->hd_hist)) {
 		struct cli_hist *hist;
 
-		if (!cli->curr_hist)
-			cli->curr_hist = CIRCLEQ_FIRST(&cli->hd_hist);
+		if (!cli->curr_hist) {
+			cli->curr_hist = CIRCLEQ_LAST(&cli->hd_hist);
+			return cli->curr_hist->line;
+		}
+
+		if (cli->curr_hist == CIRCLEQ_FIRST(&cli->hd_hist))
+			return cli->curr_hist->line;
 
 		hist = CIRCLEQ_LOOP_PREV(&cli->hd_hist, cli->curr_hist, next);
 		cli->curr_hist = hist;
@@ -160,7 +138,10 @@ cli_history_next(void)
 		struct cli_hist *hist;
 
 		if (!cli->curr_hist)
-			cli->curr_hist = CIRCLEQ_LAST(&cli->hd_hist);
+			return NULL;
+
+		if (cli->curr_hist == CIRCLEQ_LAST(&cli->hd_hist))
+			return (char *)(uintptr_t)"";
 
 		hist = CIRCLEQ_LOOP_NEXT(&cli->hd_hist, cli->curr_hist, next);
 		cli->curr_hist = hist;
@@ -210,17 +191,20 @@ cli_set_history(uint32_t nb_hist)
 	if (!cli)
 		return -1;
 
-	size = nb_hist * sizeof(struct cli_hist);
-
 	if (nb_hist == 0) {
 		cli_history_delete();
 		return 0;
 	}
 
-	if (nb_hist != cli->nb_hist)
+	if (cli->hist_mem && (nb_hist == cli->nb_hist))
+		return 0;
+
+	if (cli->hist_mem)
 		cli_history_delete();
 
 	cli->nb_hist = nb_hist;
+
+	size = nb_hist * sizeof(struct cli_hist);
 
 	cli->hist_mem = malloc(size);
 	if (cli->hist_mem) {

@@ -1,34 +1,7 @@
 /*-
- *   BSD LICENSE
+ * Copyright(c) 2016-2017 Intel Corporation. All rights reserved.
  *
- *   Copyright(c) 2016-2017 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 /**
@@ -42,10 +15,30 @@
 
 #include <stdio.h>
 #include <netinet/in.h>
+#include <rte_string_fns.h>
+#include <rte_ether.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define RTE_IPADDR_V4      0x01
+#define RTE_IPADDR_V6      0x02
+#define RTE_IPADDR_NETWORK 0x04
+
+#define RTE_INADDRSZ       4
+#define RTE_IN6ADDRSZ      16
+#define RTE_PREFIXMAX      128
+#define RTE_V4PREFIXMAX    32
+
+struct rte_ipaddr {
+	uint8_t family;
+	union {
+		struct in_addr ipv4;
+		struct in6_addr ipv6;
+	};
+	unsigned int prefixlen; /* in case of network only */
+};
 
 enum {
 	STR_MAX_ARGVS = 64,             /**< Max number of args to support */
@@ -54,6 +47,7 @@ enum {
 
 typedef uint64_t	portlist_t;
 
+#ifndef _RTE_STRING_FNS_H_
 /**
  * Takes string <string> parameter and splits it at character <delim>
  * up to maxtokens-1 times - to give <maxtokens> resulting tokens. Like
@@ -78,6 +72,7 @@ typedef uint64_t	portlist_t;
 int
 rte_strsplit(char *string, int stringlen,
              char **tokens, int maxtokens, char delim);
+#endif
 
 /**
  * Trim a set of characters like "[]" or "{}" from the start and end of string.
@@ -154,7 +149,6 @@ int rte_strqtok(char *str, const char *delim, char **entries, int maxtokens);
  */
 int rte_stropt(const char *list, char *str, const char *delim);
 
-#ifndef _STRINGS_FNS_H_
 /**
  * Helper routine to compare two strings exactly
  *
@@ -168,19 +162,18 @@ int rte_stropt(const char *list, char *str, const char *delim);
 static inline int
 rte_strmatch(const char * s1, const char * s2)
 {
-    if (!s1 || !s2)
-        return 0;
+	if (!s1 || !s2)
+		return 0;
 
-    while((*s1 != '\0') && (*s2 != '\0')) {
-        if (*s1++ != *s2++)
-            return 0;
-    }
-    if (*s1 != *s2)
-        return 0;
+	while((*s1 != '\0') && (*s2 != '\0')) {
+		if (*s1++ != *s2++)
+			return 0;
+	}
+	if (*s1 != *s2)
+		return 0;
 
-    return 1;
+	return 1;
 }
-#endif
 
 /**
  * Count the number of <c> characters in a string <s>
@@ -195,9 +188,9 @@ rte_strmatch(const char * s1, const char * s2)
 static inline int
 rte_strcnt(char *s, char c)
 {
-    return (s == NULL || *s == '\0')
-              ? 0
-              : rte_strcnt(s + 1, c) + (*s == c);
+	return (s == NULL || *s == '\0')
+	       ? 0
+	       : rte_strcnt(s + 1, c) + (*s == c);
 }
 
 /**
@@ -211,6 +204,81 @@ rte_strcnt(char *s, char c)
  *   -1 on error or 0 on success.
  */
 int rte_parse_portlist(const char *str, portlist_t *portlist);
+
+/**
+ * Convert a string Ethernet MAC address to the binary form
+ *
+ * @param a
+ *   String containing the MAC address in two forms
+ *      XX:XX:XX:XX:XX:XX or XXXX:XXXX:XXX
+ * @param e
+ *   pointer to a struct ether_addr to place the return value. If the value
+ *   is null then use a static location instead.
+ * @return
+ *   Pointer to the struct ether_addr structure;
+ */
+static inline struct ether_addr *
+rte_ether_aton(const char *a, struct ether_addr *e)
+{
+	int i;
+	char *end;
+	unsigned long o[ETHER_ADDR_LEN];
+	static struct ether_addr ether_addr;
+
+	if (!e)
+		e = &ether_addr;
+
+	i = 0;
+	do {
+		errno = 0;
+		o[i] = strtoul(a, &end, 16);
+		if (errno != 0 || end == a || (end[0] != ':' && end[0] != 0))
+			return NULL;
+		a = end + 1;
+	} while (++i != sizeof (o) / sizeof (o[0]) && end[0] != 0);
+
+	/* Junk at the end of line */
+	if (end[0] != 0)
+		return NULL;
+
+	/* Support the format XX:XX:XX:XX:XX:XX */
+	if (i == ETHER_ADDR_LEN) {
+		while (i-- != 0) {
+			if (o[i] > UINT8_MAX)
+				return NULL;
+			e->addr_bytes[i] = (uint8_t)o[i];
+		}
+		/* Support the format XXXX:XXXX:XXXX */
+	} else if (i == ETHER_ADDR_LEN / 2) {
+		while (i-- != 0) {
+			if (o[i] > UINT16_MAX)
+				return NULL;
+			e->addr_bytes[i * 2] = (uint8_t)(o[i] >> 8);
+			e->addr_bytes[i * 2 + 1] = (uint8_t)(o[i] & 0xff);
+		}
+		/* unknown format */
+	} else
+		return NULL;
+
+	return e;
+}
+
+
+/**
+ * Convert an IPv4/v6 address into a binary value.
+ *
+ * @param buf
+ *   Location of string to convert
+ * @param flags
+ *   Set of flags for converting IPv4/v6 addresses and netmask.
+ * @param res
+ *   Location to put the results
+ * @param ressize
+ *   Length of res in bytes.
+ * @return
+ *   0 on OK and -1 on error
+ */
+int rte_atoip(const char *buf, int flags, void *res, unsigned ressize);
 
 #ifdef __cplusplus
 }

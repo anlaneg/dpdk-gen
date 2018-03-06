@@ -1,44 +1,18 @@
 /*-
- *   BSD LICENSE
+ * Copyright(c) 2016-2017 Intel Corporation. All rights reserved.
  *
- *   Copyright(c) 2016-2017 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include "cli.h"
+#include "cli_input.h"
 #include "cli_file.h"
 
 struct cli_node *
 cli_file_open(const char *path, const char *type)
 {
-    struct cli_node *node;
-    uint32_t flags = 0;
+	struct cli_node *node;
+	uint32_t flags = 0;
 
 	if (!path)
 		return NULL;
@@ -174,15 +148,17 @@ cli_file_handler(struct cli_node *node, char *buff, int len, uint32_t opt)
 		if (node->foffset > node->file_size) {
 			if (!(node->fflags & CLI_FILE_APPEND)) {
 				node->foffset = saved;
-				if (node->fflags & (CLI_FREE_DATA | CLI_DATA_EXPAND)) {
+				if (node->fflags & (CLI_FREE_DATA |
+							CLI_DATA_EXPAND)) {
 					char *data;
-					data = realloc(node->file_data, node->foffset);
+					data = realloc(node->file_data,
+						node->foffset);
 					if (!data)
 						return -1;
 					node->file_data = data;
 					node->file_size = node->foffset;
-				} else
-					return -1;	/* TODO: add code to expand the file */
+				} else /* TODO: add code to expand the file */
+					return -1;
 			} else {
 				node->foffset = saved;
 				return -1;
@@ -238,7 +214,8 @@ cli_file_handler(struct cli_node *node, char *buff, int len, uint32_t opt)
 }
 
 struct cli_node *
-cli_file_create(const char *path, const char *type){
+cli_file_create(const char *path, const char *type)
+{
 	struct cli_node *node, *parent;
 	char *file, *mypath;
 	char *data = NULL;

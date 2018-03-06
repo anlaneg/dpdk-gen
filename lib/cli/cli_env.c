@@ -1,34 +1,7 @@
 /*-
- *   BSD LICENSE
+ * Copyright(c) 2016-2017 Intel Corporation. All rights reserved.
  *
- *   Copyright(c) 2016-2017 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 /* Created by: Keith Wiles @ intel */
 #include <stdlib.h>
@@ -130,7 +103,7 @@ cli_env_set(struct cli_env *env, const char *var, const char *val)
 
 int
 cli_env_string(struct cli_env *env, const char *var,
-			   cli_sfunc_t sfunc, const char *val)
+               cli_sfunc_t sfunc, const char *val)
 {
 	struct env_node *n;
 
@@ -159,6 +132,7 @@ cli_env_del(struct cli_env *env, const char *var)
 	return env_free(env, find_env(env, var));
 }
 
+/* strings to be substituted are of the form ${foo} or $(foo) */
 void
 cli_env_substitution(struct cli_env *env, char *line, int sz)
 {
@@ -168,30 +142,46 @@ cli_env_substitution(struct cli_env *env, char *line, int sz)
 	if (!env || !line || sz <= 0)
 		return;
 
+	/* Allocate string space on the stack */
 	tmp = alloca(sz + 1);
 	if (!tmp)
 		return;
+
 	memset(tmp, '\0', sz + 1);
 
+	/* Determine the end of the string */
 	e = line + sz;
-	for (p = line, t = tmp; (p[0] != '\0') || (p < e); p++) {
-		if ((p[0] == '$') && ((p[1] == '{') || (p[1] == '('))) {
-			s = strchr(p, (p[1] == '{') ? '}' : ')');
-			if (s) {
-				*s++ = '\0';
-				v = cli_env_get(env, &p[2]);
-				if (v) {
-					int n = strlen(v);
-					memcpy(t, v, n);
-					t += n;
-					continue;
-				}
-				p = s;
-			}
-		}
+
+	for (p = line, t = tmp; (p[0] != '\0') && (p < e); p++) {
+		/* Look for the '$' then the open bracket */
+		if (p[0] != '$')
+			goto next;
+
+		/* find opening bracket */
+		if ((p[1] != '{') && (p[1] != '('))
+			goto next;
+
+		/* find closing bracket */
+		s = strchr(p, (p[1] == '{') ? '}' : ')');
+		if (!s)
+			goto next;
+
+		/* terminate the variable string */
+		*s = '\0';
+
+		v = cli_env_get(env, &p[2]);
+		if (!v)
+			v = "oops!";
+
+		memcpy(t, v, strlen(v));
+		t += strlen(v);
+		p = s;		/* Point 'p' past the variable */
+		continue;
+next:
 		*t++ = *p;
 	}
 	*t = '\0';
+
 	snprintf(line, sz, "%s", tmp);
 }
 
@@ -220,8 +210,10 @@ cli_env_show(struct cli_env *env)
 
 	TAILQ_FOREACH(node, &env->head, next) {
 		if (node->sfunc)
-			cli_printf("  \"%s\" = \"%s\"\n", node->var, node->sfunc(node->val));
+			cli_printf("  \"%s\" = \"%s\"\n",
+			           node->var, node->sfunc(node->val));
 		else
-			cli_printf("  \"%s\" = \"%s\"\n", node->var, node->val);
+			cli_printf("  \"%s\" = \"%s\"\n",
+			           node->var, node->val);
 	}
 }

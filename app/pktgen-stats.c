@@ -1,35 +1,7 @@
 /*-
- * Copyright (c) <2010-2017>, Intel Corporation
- * All rights reserved.
+ * Copyright (c) <2010-2017>, Intel Corporation. All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * - Redistributions of source code must retain the above copyright
- *   notice, this list of conditions and the following disclaimer.
- *
- * - Redistributions in binary form must reproduce the above copyright
- *   notice, this list of conditions and the following disclaimer in
- *   the documentation and/or other materials provided with the
- *   distribution.
- *
- * - Neither the name of Intel Corporation nor the names of its
- *   contributors may be used to endorse or promote products derived
- *   from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
- * OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 /* Created 2010 by Keith Wiles @ intel.com */
@@ -40,6 +12,10 @@
 #include "pktgen-display.h"
 
 #include "pktgen.h"
+
+#if RTE_VERSION >= RTE_VERSION_NUM(17, 11, 0, 0)
+#include <rte_bus_pci.h>
+#endif
 
 /**************************************************************************//**
  *
@@ -119,6 +95,10 @@ pktgen_print_static_data(void)
 	scrn_printf(row++, 1, "%-*s", COLUMN_WIDTH_0, "PktSize/Tx Burst");
 	scrn_printf(row++, 1, "%-*s", COLUMN_WIDTH_0, "Src/Dest Port");
 	scrn_printf(row++, 1, "%-*s", COLUMN_WIDTH_0, "Pkt Type:VLAN ID");
+	scrn_printf(row++, 1, "%-*s", COLUMN_WIDTH_0, "802.1p CoS");
+	scrn_printf(row++, 1, "%-*s", COLUMN_WIDTH_0, "ToS Value:");
+	scrn_printf(row++, 1, "%-*s", COLUMN_WIDTH_0, "  - DSCP value");
+	scrn_printf(row++, 1, "%-*s", COLUMN_WIDTH_0, "  - IPP  value");
 	scrn_printf(row++, 1, "%-*s", COLUMN_WIDTH_0, "Dst  IP Address");
 	scrn_printf(row++, 1, "%-*s", COLUMN_WIDTH_0, "Src  IP Address");
 	scrn_printf(row++, 1, "%-*s", COLUMN_WIDTH_0, "Dst MAC Address");
@@ -132,7 +112,7 @@ pktgen_print_static_data(void)
 
 	/* Display the colon after the row label. */
 	pktgen_display_set_color("stats.colon");
-	for (row = PORT_STATE_ROW; row < ((ip_row + IP_ADDR_ROWS) - 2); row++)
+	for (row = PORT_STATE_ROW; row < ((ip_row + IP_ADDR_ROWS+4) - 2); row++)
 		scrn_printf(row, COLUMN_WIDTH_0 - 1, ":");
 
 	pktgen_display_set_color("stats.stat.values");
@@ -169,6 +149,18 @@ pktgen_print_static_data(void)
 		         (pkt->ipProto == PG_IPPROTO_TCP) ? "TCP" :
 		         (pkt->ipProto == PG_IPPROTO_ICMP) ? "ICMP" : "UDP",
 		         pkt->vlanid);
+		scrn_printf(row++, col, "%*s", COLUMN_WIDTH_1, buff);
+
+		snprintf(buff, sizeof(buff), "%d",  (pkt->cos));
+		scrn_printf(row++, col, "%*s", COLUMN_WIDTH_1, buff);
+
+		snprintf(buff, sizeof(buff), "%d",  pkt->tos);
+		scrn_printf(row++, col, "%*s", COLUMN_WIDTH_1, buff);
+
+		snprintf(buff, sizeof(buff), "%d",  (pkt->tos >> 2));
+		scrn_printf(row++, col, "%*s", COLUMN_WIDTH_1, buff);
+
+		snprintf(buff, sizeof(buff), "%d",  (pkt->tos >> 5));
 		scrn_printf(row++, col, "%*s", COLUMN_WIDTH_1, buff);
 
 		scrn_printf(row++, col, "%*s", COLUMN_WIDTH_1,
@@ -337,6 +329,7 @@ pktgen_page_stats(void)
 		rate = &info->rate_stats;
 		prev = &info->prev_stats;
 
+		pktgen_display_set_color("stats.port.data");
 		/* Rx/Tx pkts/s rate */
 		row = LINK_STATE_ROW + 1;
 		snprintf(buff, sizeof(buff), "%" PRIu64 "/%" PRIu64,
@@ -379,11 +372,12 @@ pktgen_page_stats(void)
 		/* Total Rx/Tx mbits */
 		scrn_printf(row++, col, "%*llu", COLUMN_WIDTH_1, iBitsTotal(info->prev_stats) / Million);
 		scrn_printf(row++, col, "%*llu", COLUMN_WIDTH_1, oBitsTotal(info->prev_stats) / Million);
- 
+
 		snprintf(buff, sizeof(buff), "%" PRIu64 "/%" PRIu64,
 			info->stats.arp_pkts, info->stats.echo_pkts);
 		scrn_printf(row++, col, "%*s", COLUMN_WIDTH_1, buff);
 
+		pktgen_display_set_color(NULL);
 		if (pktgen.flags & TX_DEBUG_FLAG) {
 			snprintf(buff, sizeof(buff), "%" PRIu64, info->stats.tx_failed);
 			scrn_printf(row++, col, "%*s", COLUMN_WIDTH_1, buff);
@@ -411,6 +405,8 @@ pktgen_page_stats(void)
 		display_cnt++;
 	}
 
+	pktgen_display_set_color("stats.total.data");
+
 	/* Display the total pkts/s for all ports */
 	col = (COLUMN_WIDTH_1 * display_cnt) + COLUMN_WIDTH_0;
 	row = LINK_STATE_ROW + 1;
@@ -427,6 +423,7 @@ pktgen_page_stats(void)
 	         oBitsTotal(pktgen.cumm_rate_totals) / Million);
 	scrn_printf(row++, col, "%*s", COLUMN_WIDTH_3, buff);
 	scrn_eol();
+	pktgen_display_set_color(NULL);
 }
 
 /**************************************************************************//**
@@ -460,7 +457,7 @@ pktgen_process_stats(struct rte_timer *tim __rte_unused, void *arg __rte_unused)
 			else
 				rte_eth_led_off(pid);
 		}
-    }
+	}
 	for (pid = 0; pid < pktgen.nb_ports; pid++) {
 		info = &pktgen.info[pid];
 
