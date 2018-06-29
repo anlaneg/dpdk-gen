@@ -157,7 +157,7 @@ pktgen_script_save(char *path)
 		fprintf(fd, "#\n# Set up the primary port information:\n");
 		fprintf(fd, "set %d count %" PRIu64 "\n", info->pid,
 			rte_atomic64_read(&info->transmit_count));
-		fprintf(fd, "set %d size %d\n", info->pid, pkt->pktSize + FCS_SIZE);
+		fprintf(fd, "set %d size %d\n", info->pid, pkt->pktSize + ETHER_CRC_LEN);
 		fprintf(fd, "set %d rate %g\n", info->pid, info->tx_rate);
 		fprintf(fd, "set %d burst %d\n", info->pid, info->tx_burst);
 		fprintf(fd, "set %d sport %d\n", info->pid, pkt->sport);
@@ -328,11 +328,11 @@ pktgen_script_save(char *path)
 
 		fprintf(fd, "\n");
 		fprintf(fd, "range %d size start %d\n", i,
-			range->pkt_size + FCS_SIZE);
+			range->pkt_size + ETHER_CRC_LEN);
 		fprintf(fd, "range %d size min %d\n", i,
-			range->pkt_size_min + FCS_SIZE);
+			range->pkt_size_min + ETHER_CRC_LEN);
 		fprintf(fd, "range %d size max %d\n", i,
-			range->pkt_size_max + FCS_SIZE);
+			range->pkt_size_max + ETHER_CRC_LEN);
 		fprintf(fd, "range %d size inc %d\n\n", i, range->pkt_size_inc);
 
 		fprintf(fd, "#\n# Set up the sequence data for the port.\n");
@@ -368,7 +368,7 @@ pktgen_script_save(char *path)
 				(pkt->ipProto ==
 				 PG_IPPROTO_ICMP) ? "icmp" : "udp",
 				pkt->vlanid,
-				pkt->pktSize + FCS_SIZE,
+				pkt->pktSize + ETHER_CRC_LEN,
 				pkt->gtpu_teid);
 		}
 
@@ -496,7 +496,7 @@ pktgen_lua_save(char *path)
 		fprintf(fd, "--\n-- Set up the primary port information:\n");
 		fprintf(fd, "pktgen.set('%d', 'count', %" PRIu64 ");\n", info->pid,
 			rte_atomic64_read(&info->transmit_count));
-		fprintf(fd, "pktgen.set('%d', 'size', %d);\n", info->pid, pkt->pktSize + FCS_SIZE);
+		fprintf(fd, "pktgen.set('%d', 'size', %d);\n", info->pid, pkt->pktSize + ETHER_CRC_LEN);
 		fprintf(fd, "pktgen.set('%d', 'rate', %g);\n", info->pid, info->tx_rate);
 		fprintf(fd, "pktgen.set('%d', 'burst', %d);\n", info->pid, info->tx_burst);
 		fprintf(fd, "pktgen.set('%d', 'sport', %d);\n", info->pid, pkt->sport);
@@ -666,11 +666,11 @@ pktgen_lua_save(char *path)
 
 		fprintf(fd, "\n");
 		fprintf(fd, "pktgen.pkt_size('%d', 'start', %d);\n", i,
-			range->pkt_size + FCS_SIZE);
+			range->pkt_size + ETHER_CRC_LEN);
 		fprintf(fd, "pktgen.pkt_size('%d', 'min', %d);\n", i,
-			range->pkt_size_min + FCS_SIZE);
+			range->pkt_size_min + ETHER_CRC_LEN);
 		fprintf(fd, "pktgen.pkt_size('%d', 'max', %d);\n", i,
-			range->pkt_size_max + FCS_SIZE);
+			range->pkt_size_max + ETHER_CRC_LEN);
 		fprintf(fd, "pktgen.pkt_size('%d', 'inc', %d);\n\n", i, range->pkt_size_inc);
 
 		fprintf(fd, "--\n-- Set up the sequence data for the port.\n");
@@ -711,7 +711,7 @@ pktgen_lua_save(char *path)
 					(pkt->ipProto ==
 					 PG_IPPROTO_ICMP) ? "icmp" : "udp",
 					pkt->vlanid,
-					pkt->pktSize + FCS_SIZE,
+					pkt->pktSize + ETHER_CRC_LEN,
 					pkt->gtpu_teid);
 			}
 			fflush(fd);
@@ -2445,20 +2445,20 @@ single_set_pkt_size(port_info_t *info, uint16_t size)
 {
 	pkt_seq_t * pkt = &info->seq_pkt[SINGLE_PKT];
 
-	if (size < FCS_SIZE)
-		size = FCS_SIZE;
+	if (size < ETHER_CRC_LEN)
+		size = ETHER_CRC_LEN;
 
 	if (!(rte_atomic32_read(&info->port_flags) & SEND_SHORT_PACKETS)) {
-		if ( (size - FCS_SIZE) < MIN_PKT_SIZE)
-			size = (MIN_PKT_SIZE + FCS_SIZE);
+		if ( (size - ETHER_CRC_LEN) < MIN_PKT_SIZE)
+			size = (MIN_PKT_SIZE + ETHER_CRC_LEN);
 	}
-	if ( (size - FCS_SIZE) > MAX_PKT_SIZE)
-		size = MAX_PKT_SIZE + FCS_SIZE;
+	if ( (size - ETHER_CRC_LEN) > MAX_PKT_SIZE)
+		size = MAX_PKT_SIZE + ETHER_CRC_LEN;
 
-	if ((pkt->ethType == ETHER_TYPE_IPv6) && (size < (MIN_v6_PKT_SIZE + FCS_SIZE)))
-		size = MIN_v6_PKT_SIZE + FCS_SIZE;
+	if ((pkt->ethType == ETHER_TYPE_IPv6) && (size < (MIN_v6_PKT_SIZE + ETHER_CRC_LEN)))
+		size = MIN_v6_PKT_SIZE + ETHER_CRC_LEN;
 
-	pkt->pktSize = (size - FCS_SIZE);
+	pkt->pktSize = (size - ETHER_CRC_LEN);
 
 	pktgen_packet_ctor(info, SINGLE_PKT, -1);
 	pktgen_packet_rate(info);
@@ -2591,6 +2591,10 @@ void
 enable_range(port_info_t *info, uint32_t state)
 {
 	if (state == ENABLE_STATE) {
+		if (rte_atomic32_read(&info->port_flags) & SENDING_PACKETS) {
+			pktgen_log_warning("Cannot enable the range settings while sending packets!");
+			return;
+		}
 		pktgen_clr_port_flags(info, SEND_SEQ_PKTS);
 		pktgen_clr_port_flags(info, SEND_PCAP_PKTS);
 		pktgen_set_port_flags(info, SEND_RANGE_PKTS);
@@ -2944,13 +2948,8 @@ range_set_tos_id(port_info_t *info, char *what, uint8_t id)
 {
 
 	if (!strcmp(what, "inc") || !strcmp(what, "increment")) {
-		// if (id > 255)
-		// 	id = 255;
 		info->range.tos_inc = id;
 	} else {
-		/*if ( (id < MIN_TOS) || (id > MAX_TOS) )*/
-		/*id = 160 MIN_TOS;*/
-
 		if (!strcmp(what, "min") || !strcmp(what, "minimum"))
 			info->range.tos_min = id;
 		else if (!strcmp(what, "max") || !strcmp(what, "maximum"))
@@ -2980,9 +2979,6 @@ range_set_cos_id(port_info_t *info, char *what, uint8_t id)
 			id = 7;
 		info->range.cos_inc = id;
 	} else {
-		/*if ( (id < MIN_COS) || (id > MAX_COS) )
-		id = MIN_COS;*/
-
 		if (!strcmp(what, "min") || !strcmp(what, "minimum"))
 			info->range.cos_min = id;
 		else if (!strcmp(what, "max") || !strcmp(what, "maximum"))
@@ -3008,9 +3004,8 @@ void
 range_set_pkt_size(port_info_t *info, char *what, uint16_t size)
 {
 	if (!strcmp(what, "inc") || !strcmp(what, "increment")) {
-		if (size > ETHER_MIN_LEN)
-			size = ETHER_MIN_LEN;
-
+		if (size > ETHER_MAX_LEN)
+			size = ETHER_MAX_LEN;
 		info->range.pkt_size_inc = size;
 	} else {
 		if (size < ETHER_MIN_LEN)
@@ -3018,7 +3013,7 @@ range_set_pkt_size(port_info_t *info, char *what, uint16_t size)
 		else if (size > ETHER_MAX_LEN)
 			size = MAX_PKT_SIZE;
 		else
-			size -= FCS_SIZE;
+			size -= ETHER_CRC_LEN;
 
 		if (!strcmp(what, "start") )
 			info->range.pkt_size = size;
@@ -3182,7 +3177,7 @@ pktgen_set_seq(port_info_t *info, uint32_t seqnum,
 	}
 	pkt->dport          = dport;
 	pkt->sport          = sport;
-	pkt->pktSize        = pktsize - FCS_SIZE;
+	pkt->pktSize        = pktsize - ETHER_CRC_LEN;
 	pkt->ipProto        = (proto == 'u') ? PG_IPPROTO_UDP :
 		(proto == 'i') ? PG_IPPROTO_ICMP : PG_IPPROTO_TCP;
 	/* Force the IP protocol to IPv4 if this is a ICMP packet. */
@@ -3238,7 +3233,7 @@ pktgen_compile_pkt(port_info_t *info, uint32_t seqnum,
 	pkt->ip_dst_addr.addr.ipv4.s_addr    = htonl(ip_daddr->ipv4.s_addr);
 	pkt->dport          = dport;
 	pkt->sport          = sport;
-	pkt->pktSize        = pktsize - FCS_SIZE;
+	pkt->pktSize        = pktsize - ETHER_CRC_LEN;
 	pkt->ipProto        = (proto == 'u') ? PG_IPPROTO_UDP :
 		(proto == 'i') ? PG_IPPROTO_ICMP : PG_IPPROTO_TCP;
 	/* Force the IP protocol to IPv4 if this is a ICMP packet. */

@@ -65,6 +65,9 @@
 #include <rte_ip.h>
 #include <rte_udp.h>
 #include <rte_tcp.h>
+#ifdef RTE_DBUF_INDIRECT
+#include <rte_dbuf.h>
+#endif
 
 #include <copyright_info.h>
 #include <l2p.h>
@@ -93,7 +96,7 @@
 extern "C" {
 #endif
 
-#define PKTGEN_VERSION          "3.4.9"
+#define PKTGEN_VERSION          "3.5.1"
 #define PKTGEN_APP_NAME         "Pktgen"
 #define PKTGEN_CREATED_BY       "Keith Wiles"
 
@@ -102,16 +105,20 @@ extern "C" {
 #define Million                 (uint64_t)(1000000ULL)
 
 #define iBitsTotal(_x) \
-	(uint64_t)(((_x.ipackets * (INTER_FRAME_GAP + PKT_PREAMBLE_SIZE + FCS_SIZE)) + _x.ibytes) * 8)
+	(uint64_t)(((_x.ipackets * (INTER_FRAME_GAP + PKT_PREAMBLE_SIZE + ETHER_CRC_LEN)) + _x.ibytes) * 8)
 #define oBitsTotal(_x) \
-	(uint64_t)(((_x.opackets * (INTER_FRAME_GAP + PKT_PREAMBLE_SIZE + FCS_SIZE)) + _x.obytes) * 8)
+	(uint64_t)(((_x.opackets * (INTER_FRAME_GAP + PKT_PREAMBLE_SIZE + ETHER_CRC_LEN)) + _x.obytes) * 8)
 
 #define _do(_exp)       do { _exp; } while ((0))
+
+#ifndef RTE_ETH_FOREACH_DEV
+#define RTE_ETH_FOREACH_DEV(p)	for(_p = 0; _p < pktgen.nb_ports; _p++)
+#endif
 
 #define forall_ports(_action)					\
 	do {							\
 		uint32_t pid;					\
-		for (pid = 0; pid < pktgen.nb_ports; pid++) {	\
+		RTE_ETH_FOREACH_DEV(pid) {			\
 			port_info_t   *info;			\
 			info = &pktgen.info[pid];		\
 			if (info->seq_pkt == NULL)		\
@@ -124,7 +131,7 @@ extern "C" {
 	do {								\
 		uint32_t    *_pl = (uint32_t *)&_portlist;		\
 		uint32_t pid, idx, bit;					\
-		for (pid = 0; pid < pktgen.nb_ports; pid++) {		\
+		RTE_ETH_FOREACH_DEV(pid) {				\
 			port_info_t   *info;				\
 			idx = (pid / (sizeof(uint32_t) * 8));		\
 			bit = (pid - (idx * (sizeof(uint32_t) * 8)));	\
@@ -222,10 +229,10 @@ enum {
 
 	INTER_FRAME_GAP         = 12,	/**< in bytes */
 	PKT_PREAMBLE_SIZE       = 8,	/**< in bytes */
-	FCS_SIZE                = 4,	/**< in bytes */
-	MIN_PKT_SIZE            = (ETHER_MIN_LEN - FCS_SIZE),
-	MAX_PKT_SIZE            = (ETHER_MAX_LEN - FCS_SIZE),
-	MIN_v6_PKT_SIZE         = (78 - FCS_SIZE),
+
+	MIN_PKT_SIZE            = (ETHER_MIN_LEN - ETHER_CRC_LEN),
+	MAX_PKT_SIZE            = (ETHER_MAX_LEN - ETHER_CRC_LEN),
+	MIN_v6_PKT_SIZE         = (78 - ETHER_CRC_LEN),
 
 	MAX_RX_QUEUES           = 16,	/**< RX Queues per port */
 	MAX_TX_QUEUES           = 16,	/**< TX Queues per port */
