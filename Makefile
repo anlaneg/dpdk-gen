@@ -15,6 +15,7 @@ RTE_TARGET ?= x86_64-native-linuxapp-gcc
 
 include $(RTE_SDK)/mk/rte.vars.mk
 
+#指明哪些目录将被编译
 # GUI is a work in progress
 ifeq ($(GUI),true)
 DIRS-y += lib gui app
