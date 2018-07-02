@@ -62,5 +62,10 @@ fi
 name=`uname -n`
 if [ $name == "rkwiles-DESK1.intel.com" ]; then
 	${Sudo} -E ${nic_bind} -b igb_uio 04:00.0 04:00.1 04:00.2 04:00.3 81:00.0 81:00.1 81:00.2 81:00.3 82:00.0 83:00.0
+else
+	if [ "X$PCI_LIST" != "X" ];
+	then
+		${Sudo} -E ${nic_bind} -b igb_uio $PCI_LIST
+	fi;
 fi
 ${nic_bind} --status
