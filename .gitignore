@@ -16,3 +16,7 @@ node_modules
 .settings/
 .vscode
 gulpfile.js
+lib/common/lib/
+lib/common/x86_64-native-linuxapp-gcc/
+lib/lua/src/
+
